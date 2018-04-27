@@ -29,10 +29,18 @@ use services::ledger::constants;
 use services::ledger::merkletree::merkletree::MerkleTree;
 use self::indy_crypto::bls::Generator;
 
-const REQUESTS_FOR_STATE_PROOFS: [&'static str; 4] = [constants::GET_NYM, constants::GET_SCHEMA, constants::GET_CLAIM_DEF, constants::GET_ATTR];
+const REQUESTS_FOR_STATE_PROOFS: [&'static str; 7] = [
+    constants::GET_NYM,
+    constants::GET_SCHEMA,
+    constants::GET_CRED_DEF,
+    constants::GET_ATTR,
+    constants::GET_REVOC_REG,
+    constants::GET_REVOC_REG_DEF,
+    constants::GET_REVOC_REG_DELTA,
+];
 const RESENDABLE_REQUEST_TIMEOUT: i64 = 1;
 const REQUEST_TIMEOUT_ACK: i64 = 10;
-const REQUEST_TIMEOUT_REPLY: i64 = 2000;
+const REQUEST_TIMEOUT_REPLY: i64 = 100;
 
 pub struct TransactionHandler {
     gen: Generator,
@@ -42,7 +50,7 @@ pub struct TransactionHandler {
 }
 
 impl TransactionHandler {
-    pub fn process_msg(&mut self, msg: Message, raw_msg: &String, src_ind: usize) -> Result<Option<MerkleTree>, PoolError> {
+    pub fn process_msg(&mut self, msg: Message, raw_msg: &String, _src_ind: usize) -> Result<Option<MerkleTree>, PoolError> {
         match msg {
             Message::Reply(reply) => {
                 self.process_reply(reply.result.req_id, raw_msg);
@@ -85,6 +93,9 @@ impl TransactionHandler {
         };
         let mut msg_result_without_proof: SJsonValue = msg_result.clone();
         msg_result_without_proof.as_object_mut().map(|obj| obj.remove("state_proof"));
+        if msg_result_without_proof["data"].is_object() {
+            msg_result_without_proof["data"].as_object_mut().map(|obj| obj.remove("stateProofFrom"));
+        }
         let msg_result_without_proof = HashableValue { inner: msg_result_without_proof };
 
         let reply_cnt = *self.pending_commands
@@ -230,7 +241,7 @@ impl TransactionHandler {
                     CommonError::InvalidState(
                         "Can't flash all transaction requests with common success status".to_string())));
             }
-            Err(err) => {
+            Err(_) => {
                 for (_, pending_cmd) in &mut self.pending_commands {
                     pending_cmd.terminate_parent_cmds(false)?
                 }
@@ -318,13 +329,13 @@ impl TransactionHandler {
                     return None;
                 }
             }
-            constants::GET_CLAIM_DEF => {
+            constants::GET_CRED_DEF => {
                 if let (Some(sign_type), Some(sch_seq_no)) = (json_msg["signature_type"].as_str(),
                                                               json_msg["ref"].as_u64()) {
-                    trace!("TransactionHandler::parse_reply_for_proof_checking: GET_CLAIM_DEF sign_type {:?}, sch_seq_no: {:?}", sign_type, sch_seq_no);
+                    trace!("TransactionHandler::parse_reply_for_proof_checking: GET_CRED_DEF sign_type {:?}, sch_seq_no: {:?}", sign_type, sch_seq_no);
                     format!(":\x03:{}:{}", sign_type, sch_seq_no)
                 } else {
-                    trace!("TransactionHandler::parse_reply_for_proof_checking: <<< GET_CLAIM_DEF No key suffix");
+                    trace!("TransactionHandler::parse_reply_for_proof_checking: <<< GET_CRED_DEF No key suffix");
                     return None;
                 }
             }
@@ -342,29 +353,83 @@ impl TransactionHandler {
                     return None;
                 }
             }
+            constants::GET_REVOC_REG_DEF => {
+                //{DID}:{MARKER}:{CRED_DEF_ID}:{REVOC_DEF_TYPE}:{REVOC_DEF_TAG}
+                if let (Some(cred_def_id), Some(revoc_def_type), Some(tag)) = (
+                    parsed_data["credDefId"].as_str(),
+                    parsed_data["revocDefType"].as_str(),
+                    parsed_data["tag"].as_str()) {
+                    trace!("TransactionHandler::parse_reply_for_proof_checking: GET_REVOC_REG_DEF cred_def_id {:?}, revoc_def_type: {:?}, tag: {:?}", cred_def_id, revoc_def_type, tag);
+                    format!(":4:{}:{}:{}", cred_def_id, revoc_def_type, tag)
+                } else {
+                    trace!("TransactionHandler::parse_reply_for_proof_checking: <<< GET_REVOC_REG_DEF No key suffix");
+                    return None;
+                }
+            }
+            constants::GET_REVOC_REG | constants::GET_REVOC_REG_DELTA if parsed_data["value"]["accum_from"].is_null() => {
+                //{MARKER}:{REVOC_REG_DEF_ID}
+                if let Some(revoc_reg_def_id) = parsed_data["revocRegDefId"].as_str() {
+                    trace!("TransactionHandler::parse_reply_for_proof_checking: GET_REVOC_REG revoc_reg_def_id {:?}", revoc_reg_def_id);
+                    format!("5:{}", revoc_reg_def_id)
+                } else {
+                    trace!("TransactionHandler::parse_reply_for_proof_checking: <<< GET_REVOC_REG No key suffix");
+                    return None;
+                }
+            }
+            /* TODO add multiproof checking and external verification of indexes
+            constants::GET_REVOC_REG_DELTA if !parsed_data["value"]["accum_from"].is_null() => {
+                //{MARKER}:{REVOC_REG_DEF_ID}
+                if let Some(revoc_reg_def_id) = parsed_data["value"]["accum_to"]["revocRegDefId"].as_str() {
+                    trace!("TransactionHandler::parse_reply_for_proof_checking: GET_REVOC_REG_DELTA revoc_reg_def_id {:?}", revoc_reg_def_id);
+                    format!("6:{}", revoc_reg_def_id)
+                } else {
+                    trace!("TransactionHandler::parse_reply_for_proof_checking: <<< GET_REVOC_REG_DELTA No key suffix");
+                    return None;
+                }
+            }
+            */
             _ => {
-                trace!("TransactionHandler::parse_reply_for_proof_checking: <<< Unknown transaction");
+                trace!("TransactionHandler::parse_reply_for_proof_checking: <<< Unsupported transaction");
                 return None;
             }
         };
 
-        let key = if let Some(dest) = json_msg["dest"].as_str().or(json_msg["origin"].as_str()) {
-            let mut dest = if xtype == constants::GET_NYM {
-                let mut hasher = sha2::Sha256::default();
-                hasher.process(dest.as_bytes());
-                hasher.fixed_result().to_vec()
-            } else {
-                dest.as_bytes().to_vec()
-            };
-
-            dest.extend_from_slice(key_suffix.as_bytes());
-
-            trace!("TransactionHandler::parse_reply_for_proof_checking: dest: {:?}", dest);
-            dest
-        } else {
-            trace!("TransactionHandler::parse_reply_for_proof_checking: <<< No dest");
-            return None;
+        let dest = json_msg["dest"].as_str().or(json_msg["origin"].as_str());
+        let key_prefix = match xtype {
+            constants::GET_NYM => {
+                if let Some(dest) = dest {
+                    let mut hasher = sha2::Sha256::default();
+                    hasher.process(dest.as_bytes());
+                    hasher.fixed_result().to_vec()
+                } else {
+                    trace!("TransactionHandler::parse_reply_for_proof_checking: <<< No dest");
+                    return None;
+                }
+            }
+            constants::GET_REVOC_REG | constants::GET_REVOC_REG_DELTA => {
+                Vec::new()
+            }
+            constants::GET_REVOC_REG_DEF => {
+                if let Some(id) = json_msg["id"].as_str() { //FIXME
+                    id.splitn(2, ":").next().unwrap()
+                        .as_bytes().to_vec()
+                } else {
+                    trace!("TransactionHandler::parse_reply_for_proof_checking: <<< No dest");
+                    return None;
+                }
+            }
+            _ => {
+                if let Some(dest) = dest {
+                    dest.as_bytes().to_vec()
+                } else {
+                    trace!("TransactionHandler::parse_reply_for_proof_checking: <<< No dest");
+                    return None;
+                }
+            }
         };
+
+        let mut key = key_prefix;
+        key.extend_from_slice(key_suffix.as_bytes());
 
         let value: Option<String> = match TransactionHandler::parse_reply_for_proof_value(json_msg, data, parsed_data, xtype) {
             Ok(value) => value,
@@ -404,7 +469,7 @@ impl TransactionHandler {
                     hasher.process(data.as_bytes());
                     value["val"] = SJsonValue::String(hasher.fixed_result().to_hex());
                 }
-                constants::GET_CLAIM_DEF => {
+                constants::GET_CRED_DEF | constants::GET_REVOC_REG_DEF | constants::GET_REVOC_REG => {
                     value["val"] = parsed_data;
                 }
                 constants::GET_SCHEMA => {
@@ -420,6 +485,9 @@ impl TransactionHandler {
                     } else {
                         return Err("Invalid data for GET_SCHEMA".to_string());
                     };
+                }
+                constants::GET_REVOC_REG_DELTA => {
+                    value["val"] = parsed_data["value"]["accum_to"].clone(); // TODO check accum_from also
                 }
                 _ => {
                     return Err("Unknown transaction".to_string());
@@ -532,7 +600,7 @@ impl CommandProcess {
                 .send(Command::Ledger(LedgerCommand::SubmitAck(
                     *cmd_id,
                     Err(if is_timeout { PoolError::Timeout } else { PoolError::Terminate }))))
-                .map_err(|err| CommonError::InvalidState("Can't send ACK cmd".to_string()))?;
+                .map_err(|err| CommonError::InvalidState(format!("Can't send ACK cmd: {:?}", err)))?;
         }
         self.parent_cmd_ids.clear();
         Ok(())
@@ -546,6 +614,9 @@ mod tests {
 
     #[test]
     fn transaction_handler_process_reply_works() {
+        use utils::logger::LoggerUtils;
+        LoggerUtils::init();
+
         let mut th: TransactionHandler = Default::default();
         th.f = 1;
         let mut pc = CommandProcess {
