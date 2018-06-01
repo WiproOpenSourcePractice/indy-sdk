@@ -2,13 +2,14 @@
 
 Indy-SDK Developer Walkthrough #1, Python Edition
 
-[ [Java](../java/README.md) | [.NET](../dotnet/README.md) | [Node.js](../node/README.md) | [Objective C](../objectivec/README.md) ]
+[ [Java](../../not-yet-written.md) | [.NET](../../not-yet-written.md) | [Node.js](../../not-yet-written.md) | [Objective C](../../not-yet-written.md) ]
 
 
 ## Prerequisites
 
-Setup your workstation with an indy development virtual machine (VM). See [prerequisites](../../prerequisites).
+Setup your workstation with an indy development virtual machine (VM). See [prerequisites](../../prerequisites.md).
 
+Ensure you have the 64-bit version of Python installed, as the 32-bit version may have problems loading the Indy .dll files.
 
 ## Steps
 
@@ -22,6 +23,8 @@ Save the doc as `write_did.py`
 
 This is a very simple app framework into which you'll plug the code
 you'll be writing.
+
+Install the required python packages by executing `pip install python3-indy asyncio`
 
 ### Step 2
 
@@ -112,7 +115,7 @@ Now that you have a trust anchor identity, you can write or query
 any number of additional identities to the ledger, with just a handful of
 lines of code. Try creating some.
 
-You might try the ["Rotate a Key"](../../rotate-key/python/README.md)
+You might try the ["Rotate a Key"](../../rotate-key/../not-yet-written.md)
 how-to, which can be done in only one step one you complete this one.
 
 You could also try to create a new steward identity without a seed, or
