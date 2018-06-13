@@ -343,16 +343,15 @@ def linuxPythonTesting(env_name, network_name, testEnv) {
 
 def linuxNodejsTesting(env_name, network_name, testEnv) {
     unstash name: "LibindyNodejsSO${env_name}"
-    dir('wrappers/nodejs') {
-        testEnv.inside("--network=${network_name}") {
-            echo "${env_name} Libindy Test: Test nodejs wrapper"
+    testEnv.inside("--network=${network_name}") {
+        echo "${env_name} Libindy Test: Test nodejs wrapper"
 
-            sh '''
-                npm run cp-include
+        sh '''
+                cd wrappers/nodejs
+                npm run prepare
                 npm install
                 LD_LIBRARY_PATH=./:${LD_LIBRARY_PATH} RUST_LOG=trace TEST_POOL_IP=10.0.0.2 npm test
             '''
-        }
     }
 }
 
