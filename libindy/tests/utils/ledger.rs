@@ -1,4 +1,5 @@
 extern crate time;
+extern crate serde;
 extern crate serde_json;
 
 use indy::api::ErrorCode;
@@ -56,6 +57,23 @@ impl LedgerUtils {
         let request_json = CString::new(request_json).unwrap();
 
         let err = indy_submit_request(command_handle, pool_handle, request_json.as_ptr(), cb);
+
+        super::results::result_to_string(err, receiver)
+    }
+
+    pub fn submit_action(pool_handle: i32, request_json: &str, nodes: Option<&str>, timeout: Option<i32>) -> Result<String, ErrorCode> {
+        let (receiver, command_handle, cb) = CallbackUtils::_closure_to_cb_ec_string();
+
+        let request_json = CString::new(request_json).unwrap();
+        let nodes_str = nodes.map(|s| CString::new(s).unwrap()).unwrap_or(CString::new("").unwrap());
+        let timeout = timeout.unwrap_or(-1);
+
+        let err = indy_submit_action(command_handle,
+                                     pool_handle,
+                                     request_json.as_ptr(),
+                                     if nodes.is_some() { nodes_str.as_ptr() } else { null() },
+                                     timeout,
+                                     cb);
 
         super::results::result_to_string(err, receiver)
     }
@@ -288,12 +306,16 @@ impl LedgerUtils {
         super::results::result_to_string(err, receiver)
     }
 
-    pub fn build_get_txn_request(submitter_did: &str, data: i32) -> Result<String, ErrorCode> {
+    pub fn build_get_txn_request(submitter_did: &str, data: i32, ledger_type: Option<&str>) -> Result<String, ErrorCode> {
         let (receiver, command_handle, cb) = CallbackUtils::_closure_to_cb_ec_string();
 
         let submitter_did = CString::new(submitter_did).unwrap();
+        let ledger_type_str = ledger_type.map(|s| CString::new(s).unwrap()).unwrap_or(CString::new("").unwrap());
 
-        let err = indy_build_get_txn_request(command_handle, submitter_did.as_ptr(), data, cb);
+        let err = indy_build_get_txn_request(command_handle,
+                                             submitter_did.as_ptr(),
+                                             if ledger_type.is_some() { ledger_type_str.as_ptr() } else { null() },
+                                             data, cb);
 
         super::results::result_to_string(err, receiver)
     }
@@ -327,7 +349,7 @@ impl LedgerUtils {
     }
 
     pub fn build_pool_upgrade_request(submitter_did: &str, name: &str, version: &str, action: &str, sha256: &str, timeout: Option<u32>, schedule: Option<&str>,
-                                      justification: Option<&str>, reinstall: bool, force: bool) -> Result<String, ErrorCode> {
+                                      justification: Option<&str>, reinstall: bool, force: bool, package: Option<&str>) -> Result<String, ErrorCode> {
         let (receiver, command_handle, cb) = CallbackUtils::_closure_to_cb_ec_string();
 
         let submitter_did = CString::new(submitter_did).unwrap();
@@ -339,6 +361,7 @@ impl LedgerUtils {
 
         let schedule_str = schedule.map(|s| CString::new(s).unwrap()).unwrap_or(CString::new("").unwrap());
         let justification_str = justification.map(|s| CString::new(s).unwrap()).unwrap_or(CString::new("").unwrap());
+        let package_str = package.map(|s| CString::new(s).unwrap()).unwrap_or(CString::new("").unwrap());
 
         let err =
             indy_build_pool_upgrade_request(command_handle,
@@ -352,6 +375,7 @@ impl LedgerUtils {
                                             if justification.is_some() { justification_str.as_ptr() } else { null() },
                                             reinstall,
                                             force,
+                                            if package.is_some() { package_str.as_ptr() } else { null() },
                                             cb);
 
         super::results::result_to_string(err, receiver)
@@ -532,7 +556,7 @@ impl LedgerUtils {
                 let pool_name = "COMMON_ENTITIES_POOL";
                 let pool_handle = PoolUtils::create_and_open_pool_ledger(pool_name).unwrap();
 
-                let wallet_handle = WalletUtils::create_and_open_wallet(pool_name, None).unwrap();
+                let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
                 let (issuer_did, _) = DidUtils::create_store_and_publish_my_did_from_trustee(wallet_handle, pool_handle).unwrap();
 
@@ -553,7 +577,7 @@ impl LedgerUtils {
                                                                                                        &schema_json,
                                                                                                        TAG_1,
                                                                                                        None,
-                                                                                                       &AnoncredsUtils::revocation_cred_def_config()).unwrap();
+                                                                                                       Some(&AnoncredsUtils::revocation_cred_def_config())).unwrap();
                 let cred_def_request = LedgerUtils::build_cred_def_txn(&issuer_did, &cred_def_json).unwrap();
                 LedgerUtils::sign_and_submit_request(pool_handle, wallet_handle, &issuer_did, &cred_def_request).unwrap();
 

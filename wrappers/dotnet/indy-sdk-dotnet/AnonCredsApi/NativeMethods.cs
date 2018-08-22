@@ -24,7 +24,7 @@ namespace Hyperledger.Indy.AnonCredsApi
         /// <param name="issuer_did">DID of schema issuer.</param>
         /// <param name="name">Name of the schema</param>
         /// <param name="version">Version of the schema</param>
-        /// <param name="attrs">A list of schema atribute descriptions.</param>
+        /// <param name="attrs">A list of schema attribute descriptions.</param>
         /// <param name="cb">Callback that takes command result as parameter</param>
         [DllImport(Consts.NATIVE_LIB_NAME, CharSet = CharSet.Ansi, BestFitMapping = false, ThrowOnUnmappableChar = true)]
         internal static extern int indy_issuer_create_schema(int command_handle, string issuer_did, string name, string version, string attrs, IssuerCreateSchemaCompletedDelegate cb);
@@ -198,15 +198,13 @@ namespace Hyperledger.Indy.AnonCredsApi
         /// <param name="command_handle">Command handle.</param>
         /// <param name="wallet_handle">Wallet handle.</param>
         /// <param name="cred_id">Cred identifier.</param>
-        /// <param name="cred_req_json">Cred req json.</param>
         /// <param name="cred_req_metadata_json">Cred req metadata json.</param>
         /// <param name="cred_json">Cred json.</param>
         /// <param name="cred_def_json">Cred def json.</param>
         /// <param name="rev_reg_def_json">Rev reg def json.</param>
         /// <param name="cb">Cb.</param>
         [DllImport(Consts.NATIVE_LIB_NAME, CharSet = CharSet.Ansi, BestFitMapping = false, ThrowOnUnmappableChar = true)]
-        internal static extern int indy_prover_store_credential(int command_handle, IntPtr wallet_handle, string cred_id, string cred_req_json, string cred_req_metadata_json, string cred_json, string cred_def_json, string rev_reg_def_json, ProverStoreCredentialCompletedDelegate cb);
-
+        internal static extern int indy_prover_store_credential(int command_handle, IntPtr wallet_handle, string cred_id, string cred_req_metadata_json, string cred_json, string cred_def_json, string rev_reg_def_json, ProverStoreCredentialCompletedDelegate cb);
         /// <summary>
         /// Prover store credential completed delegate.
         /// </summary>

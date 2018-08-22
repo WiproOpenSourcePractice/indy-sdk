@@ -8,13 +8,11 @@ use utils::cstring::CStringUtils;
 
 use self::libc::c_char;
 
-/// Registers custom wallet storage implementation.
-///
-/// It allows library user to provide custom wallet implementation.
+/// Register custom wallet storage implementation.
 ///
 /// #Params
 /// command_handle: Command handle to map callback to caller context.
-/// type_: Wallet type name.
+/// type_: Storage type name.
 /// create: WalletType create operation handler
 /// open: WalletType open operation handler
 /// close: Wallet close operation handler
@@ -69,6 +67,9 @@ pub extern fn indy_register_wallet_storage(command_handle: i32,
                                            free_search: Option<WalletFreeSearch>,
                                            cb: Option<extern fn(xcommand_handle: i32,
                                                                 err: ErrorCode)>) -> ErrorCode {
+    trace!("indy_register_wallet_type: >>> command_handle: {:?}, type_: {:?}, cb: {:?}",
+           command_handle, type_, cb); // TODO: Log all params
+
     check_useful_c_str!(type_, ErrorCode::CommonInvalidParam2);
     check_useful_c_callback!(create, ErrorCode::CommonInvalidParam3);
     check_useful_c_callback!(open, ErrorCode::CommonInvalidParam4);
@@ -79,24 +80,24 @@ pub extern fn indy_register_wallet_storage(command_handle: i32,
     check_useful_c_callback!(update_record_tags, ErrorCode::CommonInvalidParam9);
     check_useful_c_callback!(add_record_tags, ErrorCode::CommonInvalidParam10);
     check_useful_c_callback!(delete_record_tags, ErrorCode::CommonInvalidParam11);
-    check_useful_c_callback!(delete_record, ErrorCode::CommonInvalidParam11);
-    check_useful_c_callback!(get_record, ErrorCode::CommonInvalidParam11);
-    check_useful_c_callback!(get_record_id, ErrorCode::CommonInvalidParam11);
-    check_useful_c_callback!(get_record_type, ErrorCode::CommonInvalidParam11);
-    check_useful_c_callback!(get_record_value, ErrorCode::CommonInvalidParam11);
-    check_useful_c_callback!(get_record_tags, ErrorCode::CommonInvalidParam11);
-    check_useful_c_callback!(free_record, ErrorCode::CommonInvalidParam11);
-    check_useful_c_callback!(get_storage_metadata, ErrorCode::CommonInvalidParam11);
-    check_useful_c_callback!(set_storage_metadata, ErrorCode::CommonInvalidParam11);
-    check_useful_c_callback!(free_storage_metadata, ErrorCode::CommonInvalidParam11);
-    check_useful_c_callback!(search_records, ErrorCode::CommonInvalidParam11);
-    check_useful_c_callback!(search_all_records, ErrorCode::CommonInvalidParam11);
-    check_useful_c_callback!(get_search_total_count, ErrorCode::CommonInvalidParam11);
-    check_useful_c_callback!(fetch_search_next_record, ErrorCode::CommonInvalidParam11); // TODO: CommonInvalidParam.......
-    check_useful_c_callback!(free_search, ErrorCode::CommonInvalidParam11); // TODO: CommonInvalidParam.......
-    check_useful_c_callback!(cb, ErrorCode::CommonInvalidParam12);
+    check_useful_c_callback!(delete_record, ErrorCode::CommonInvalidParam12);
+    check_useful_c_callback!(get_record, ErrorCode::CommonInvalidParam13);
+    check_useful_c_callback!(get_record_id, ErrorCode::CommonInvalidParam14);
+    check_useful_c_callback!(get_record_type, ErrorCode::CommonInvalidParam15);
+    check_useful_c_callback!(get_record_value, ErrorCode::CommonInvalidParam16);
+    check_useful_c_callback!(get_record_tags, ErrorCode::CommonInvalidParam17);
+    check_useful_c_callback!(free_record, ErrorCode::CommonInvalidParam18);
+    check_useful_c_callback!(get_storage_metadata, ErrorCode::CommonInvalidParam19);
+    check_useful_c_callback!(set_storage_metadata, ErrorCode::CommonInvalidParam20);
+    check_useful_c_callback!(free_storage_metadata, ErrorCode::CommonInvalidParam21);
+    check_useful_c_callback!(search_records, ErrorCode::CommonInvalidParam22);
+    check_useful_c_callback!(search_all_records, ErrorCode::CommonInvalidParam23);
+    check_useful_c_callback!(get_search_total_count, ErrorCode::CommonInvalidParam24);
+    check_useful_c_callback!(fetch_search_next_record, ErrorCode::CommonInvalidParam25);
+    check_useful_c_callback!(free_search, ErrorCode::CommonInvalidParam26);
+    check_useful_c_callback!(cb, ErrorCode::CommonInvalidParam27);
 
-    trace!("indy_register_wallet_type: entities >>> type_: {:?}", type_);
+    trace!("indy_register_wallet_type: params type_: {:?}", type_);
 
     let result = CommandExecutor::instance()
         .send(Command::Wallet(
@@ -128,34 +129,174 @@ pub extern fn indy_register_wallet_storage(command_handle: i32,
                 free_search,
                 Box::new(move |result| {
                     let err = result_to_err_code!(result);
+                    trace!("indy_register_wallet_type: cb command_handle: {:?}, err: {:?}", command_handle, err);
                     cb(command_handle, err)
                 })
             )));
 
     let res = result_to_err_code!(result);
-
     trace!("indy_register_wallet_type: <<< res: {:?}", res);
-
     res
 }
 
-/// Creates a new secure wallet with the given unique name.
+/// Create a new secure wallet.
 ///
 /// #Params
-/// pool_name: Name of the pool that corresponds to this wallet.
-/// name: Name of the wallet.
-/// storage_type(optional): Type of the wallet storage. Defaults to 'default'.
+/// config: Wallet configuration json.
+/// {
+///   "id": string, Identifier of the wallet.
+///         Configured storage uses this identifier to lookup exact wallet data placement.
+///   "storage_type": optional<string>, Type of the wallet storage. Defaults to 'default'.
+///                  'Default' storage type allows to store wallet data in the local file.
 ///                  Custom storage types can be registered with indy_register_wallet_storage call.
-/// config(optional): Wallet configuration json.
+///   "storage_config": optional<object>, Storage configuration json. Storage type defines set of supported keys.
+///                     Can be optional if storage supports default configuration.
+///                     For 'default' storage type configuration is:
 ///   {
-///       "storage": <object>  List of supported keys are defined by wallet type.
+///     "path": optional<string>, Path to the directory with wallet files.
+///             Defaults to $HOME/.indy_client/wallets.
+///             Wallet will be stored in the file {path}/{id}/sqlite.db
+///   }
+/// }
+/// credentials: Wallet credentials json
+/// {
+///   "key": string, Passphrase used to derive wallet master key
+///   "storage_credentials": optional<object> Credentials for wallet storage. Storage type defines set of supported keys.
+///                          Can be optional if storage supports default configuration.
+///                          For 'default' storage type should be empty.
+///   "key_derivation_method": optional<string> algorithm to use for master key derivation:
+///                          ARAGON2I_MOD (used by default)
+///                          ARAGON2I_INT - less secured but faster
+/// }
+///
+/// #Returns
+/// err: Error code
+///
+/// #Errors
+/// Common*
+/// Wallet*
+#[no_mangle]
+pub extern fn indy_create_wallet(command_handle: i32,
+                                 config: *const c_char,
+                                 credentials: *const c_char,
+                                 cb: Option<extern fn(xcommand_handle: i32,
+                                                      err: ErrorCode)>) -> ErrorCode {
+    trace!("indy_create_wallet: >>> command_handle: {:?}, config: {:?}, credentials: {:?}, cb: {:?}",
+           command_handle, config, credentials, cb);
+
+    check_useful_c_str!(config, ErrorCode::CommonInvalidParam2);
+    check_useful_c_str!(credentials, ErrorCode::CommonInvalidParam3);
+    check_useful_c_callback!(cb, ErrorCode::CommonInvalidParam4);
+
+    trace!("indy_create_wallet: params config: {:?}, credentials: {:?}",
+           config, secret!(credentials.as_str()));
+
+    let result = CommandExecutor::instance()
+        .send(Command::Wallet(WalletCommand::Create(
+            config,
+            credentials,
+            Box::new(move |result| {
+                let err = result_to_err_code!(result);
+                trace!("indy_create_wallet: cb command_handle: {:?}, err: {:?}", command_handle, err);
+                cb(command_handle, err)
+            })
+        )));
+
+    let res = result_to_err_code!(result);
+    trace!("indy_create_wallet: <<< res: {:?}", res);
+    res
+}
+
+/// Open the wallet.
+///
+/// Wallet must be previously created with indy_create_wallet method.
+///
+/// #Params
+/// config: Wallet configuration json.
+///   {
+///       "id": string, Identifier of the wallet.
+///             Configured storage uses this identifier to lookup exact wallet data placement.
+///       "storage_type": optional<string>, Type of the wallet storage. Defaults to 'default'.
+///                       'Default' storage type allows to store wallet data in the local file.
+///                       Custom storage types can be registered with indy_register_wallet_storage call.
+///       "storage_config": optional<object>, Storage configuration json. Storage type defines set of supported keys.
+///                         Can be optional if storage supports default configuration.
+///                         For 'default' storage type configuration is:
+///           {
+///              "path": optional<string>, Path to the directory with wallet files.
+///                      Defaults to $HOME/.indy_client/wallets.
+///                      Wallet will be stored in the file {path}/{id}/sqlite.db
+///           }
+///
 ///   }
 /// credentials: Wallet credentials json
 ///   {
-///       "key": string,
-///       "rekey": Optional<string>,
-///       "storage": Optional<object>  List of supported keys are defined by wallet type.
+///       "key": string, Passphrase used to derive current wallet master key
+///       "rekey": optional<string>, If present than wallet master key will be rotated to a new one
+///                                  derived from this passphrase.
+///       "storage_credentials": optional<object> Credentials for wallet storage. Storage type defines set of supported keys.
+///                              Can be optional if storage supports default configuration.
+///                              For 'default' storage type should be empty.
+///       "key_derivation_method": optional<string> algorithm to use for master key derivation:
+///                             ARAGON2I_MOD (used by default)
+///                             ARAGON2I_INT - less secured but faster
+///       "rekey_derivation_method": optional<string> algorithm to use for master rekey derivation:
+///                             ARAGON2I_MOD (used by default)
+///                             ARAGON2I_INT - less secured but faster
+///   }
 ///
+/// #Returns
+/// err: Error code
+/// handle: Handle to opened wallet to use in methods that require wallet access.
+///
+/// #Errors
+/// Common*
+/// Wallet*
+#[no_mangle]
+pub extern fn indy_open_wallet(command_handle: i32,
+                               config: *const c_char,
+                               credentials: *const c_char,
+                               cb: Option<extern fn(xcommand_handle: i32,
+                                                    err: ErrorCode,
+                                                    handle: i32)>) -> ErrorCode {
+    trace!("indy_open_wallet: >>> command_handle: {:?}, config: {:?}, credentials: {:?}, cb: {:?}",
+           command_handle, config, credentials, cb);
+
+    check_useful_c_str!(config, ErrorCode::CommonInvalidParam2);
+    check_useful_c_str!(credentials, ErrorCode::CommonInvalidParam3);
+    check_useful_c_callback!(cb, ErrorCode::CommonInvalidParam4);
+
+    trace!("indy_open_wallet: params config: {:?}, credentials: {:?}",
+           config, secret!(credentials.as_str()));
+
+    let result = CommandExecutor::instance()
+        .send(Command::Wallet(WalletCommand::Open(
+            config,
+            credentials,
+            Box::new(move |result| {
+                let (err, handle) = result_to_err_code_1!(result, 0);
+                trace!("indy_open_wallet: cb command_handle: {:?} err: {:?}, handle: {:?}",
+                       command_handle, err, handle);
+                cb(command_handle, err, handle)
+            })
+        )));
+
+    let res = result_to_err_code!(result);
+    trace!("indy_open_wallet: <<< res: {:?}", res);
+    res
+}
+
+/// Exports opened wallet
+///
+/// #Params:
+/// wallet_handle: wallet handle returned by indy_open_wallet
+/// export_config: JSON containing settings for input operation.
+///   {
+///     "path": <string>, Path of the file that contains exported wallet content
+///     "key": <string>, Passphrase used to derive export key
+///     "key_derivation_method": optional<string> algorithm to use for export key derivation:
+///                              ARAGON2I_MOD (used by default)
+///                              ARAGON2I_INT - less secured but faster
 ///   }
 ///
 /// #Returns
@@ -165,153 +306,118 @@ pub extern fn indy_register_wallet_storage(command_handle: i32,
 /// Common*
 /// Wallet*
 #[no_mangle]
-pub extern fn indy_create_wallet(command_handle: i32,
-                                 pool_name: *const c_char,
-                                 name: *const c_char,
-                                 storage_type: *const c_char,
-                                 config: *const c_char,
-                                 credentials_json: *const c_char,
+pub extern fn indy_export_wallet(command_handle: i32,
+                                 wallet_handle: i32,
+                                 export_config: *const c_char,
                                  cb: Option<extern fn(xcommand_handle: i32,
                                                       err: ErrorCode)>) -> ErrorCode {
-    trace!("indy_create_wallet: >>> pool_name: {:?}, name: {:?}, storage_type: {:?}, config: {:?}, credentials_json: {:?}",
-           pool_name, name, storage_type, config, credentials_json);
+    trace!("indy_export_wallet: >>> wallet_handle: {:?}, export_config: {:?}", wallet_handle, export_config);
 
-    check_useful_c_str!(pool_name, ErrorCode::CommonInvalidParam2);
-    check_useful_c_str!(name, ErrorCode::CommonInvalidParam3);
-    check_useful_opt_c_str!(storage_type, ErrorCode::CommonInvalidParam4);
-    check_useful_opt_c_str!(config, ErrorCode::CommonInvalidParam5);
-    check_useful_c_str!(credentials_json, ErrorCode::CommonInvalidParam6);
-    check_useful_c_callback!(cb, ErrorCode::CommonInvalidParam7);
+    check_useful_c_str!(export_config, ErrorCode::CommonInvalidParam3);
+    check_useful_c_callback!(cb, ErrorCode::CommonInvalidParam4);
 
-    trace!("indy_create_wallet: entities >>> pool_name: {:?}, name: {:?}, storage_type: {:?}, config: {:?}, credentials_json: {:?}",
-           pool_name, name, storage_type, config, credentials_json);
+    trace!("indy_export_wallet: params wallet_handle: {:?}, export_config: {:?}", wallet_handle, secret!(export_config.as_str()));
 
     let result = CommandExecutor::instance()
-        .send(Command::Wallet(WalletCommand::Create(
-            pool_name,
-            name,
-            storage_type,
-            config,
-            credentials_json,
+        .send(Command::Wallet(WalletCommand::Export(
+            wallet_handle,
+            export_config,
             Box::new(move |result| {
                 let err = result_to_err_code!(result);
-                trace!("indy_create_wallet:");
+                trace!("indy_export_wallet: cb command_handle: {:?} err: {:?}", command_handle, err);
                 cb(command_handle, err)
             })
         )));
 
     let res = result_to_err_code!(result);
-
-    trace!("indy_create_wallet: <<< res: {:?}", res);
-
+    trace!("indy_export_wallet: <<< res: {:?}", res);
     res
 }
 
-/// Opens the wallet with specific name.
-///
-/// Wallet with corresponded name must be previously created with indy_create_wallet method.
-/// It is impossible to open wallet with the same name more than once.
+
+/// Creates a new secure wallet and then imports its content
+/// according to fields provided in import_config
+/// This can be seen as an indy_create_wallet call with additional content import
 ///
 /// #Params
-/// name: Name of the wallet.
-/// runtime_config (optional): Runtime wallet configuration json. if NULL, then default runtime_config will be used.
+/// config: Wallet configuration json.
+/// {
+///   "id": string, Identifier of the wallet.
+///         Configured storage uses this identifier to lookup exact wallet data placement.
+///   "storage_type": optional<string>, Type of the wallet storage. Defaults to 'default'.
+///                  'Default' storage type allows to store wallet data in the local file.
+///                  Custom storage types can be registered with indy_register_wallet_storage call.
+///   "storage_config": optional<object>, Storage configuration json. Storage type defines set of supported keys.
+///                     Can be optional if storage supports default configuration.
+///                     For 'default' storage type configuration is:
 ///   {
-///       "storage": Optional<object>  List of supported keys are defined by wallet type.
+///     "path": optional<string>, Path to the directory with wallet files.
+///             Defaults to $HOME/.indy_client/wallets.
+///             Wallet will be stored in the file {path}/{id}/sqlite.db
 ///   }
+/// }
 /// credentials: Wallet credentials json
-///   {
-///       "key": string,
-///       "rekey": Optional<string>,
-///       "storage": Optional<object>  List of supported keys are defined by wallet type.
-///
-///   }
+/// {
+///   "key": string, Passphrase used to derive wallet master key
+///   "storage_credentials": optional<object> Credentials for wallet storage. Storage type defines set of supported keys.
+///                          Can be optional if storage supports default configuration.
+///                          For 'default' storage type should be empty.
+///   "key_derivation_method": optional<string> algorithm to use for master key derivation:
+///                            ARAGON2I_MOD (used by default)
+///                            ARAGON2I_INT - less secured but faster
+/// }
+/// import_config: Import settings json.
+/// {
+///   "path": <string>, path of the file that contains exported wallet content
+///   "key": <string>, passphrase used to derive export key
+/// }
 ///
 /// #Returns
-/// Handle to opened wallet to use in methods that require wallet access.
+/// Error code
 ///
 /// #Errors
 /// Common*
 /// Wallet*
 #[no_mangle]
-pub extern fn indy_open_wallet(command_handle: i32,
-                               name: *const c_char,
-                               runtime_config: *const c_char,
-                               credentials_json: *const c_char,
-                               cb: Option<extern fn(xcommand_handle: i32,
-                                                    err: ErrorCode,
-                                                    handle: i32)>) -> ErrorCode {
-    trace!("indy_open_wallet: >>> name: {:?}, runtime_config: {:?}, credentials_json: {:?}", name, runtime_config, credentials_json);
+pub extern fn indy_import_wallet(command_handle: i32,
+                                 config: *const c_char,
+                                 credentials: *const c_char,
+                                 import_config: *const c_char,
+                                 cb: Option<extern fn(xcommand_handle: i32,
+                                                      err: ErrorCode)>) -> ErrorCode {
+    trace!("indy_import_wallet: >>> command_handle: {:?}, config: {:?}, credentials: {:?}, import_config: {:?}, cb: {:?}",
+           command_handle, config, credentials, import_config, cb);
 
-    check_useful_c_str!(name, ErrorCode::CommonInvalidParam2);
-    check_useful_opt_c_str!(runtime_config, ErrorCode::CommonInvalidParam3);
-    check_useful_c_str!(credentials_json, ErrorCode::CommonInvalidParam4);
+    check_useful_c_str!(config, ErrorCode::CommonInvalidParam2);
+    check_useful_c_str!(credentials, ErrorCode::CommonInvalidParam3);
+    check_useful_c_str!(import_config, ErrorCode::CommonInvalidParam4);
     check_useful_c_callback!(cb, ErrorCode::CommonInvalidParam5);
 
-    trace!("indy_open_wallet: entities >>> name: {:?}, runtime_config: {:?}, credentials_json: {:?}", name, runtime_config, credentials_json);
+    trace!("indy_import_wallet: params config: {:?}, credentials: {:?}, import_config: {:?}",
+           config, secret!(credentials.as_str()), secret!(import_config.as_str()));
 
     let result = CommandExecutor::instance()
-        .send(Command::Wallet(WalletCommand::Open(
-            name,
-            runtime_config,
-            credentials_json,
+        .send(Command::Wallet(WalletCommand::Import(
+            config,
+            credentials,
+            import_config,
             Box::new(move |result| {
-                let (err, handle) = result_to_err_code_1!(result, 0);
-                trace!("indy_open_wallet: handle: {:?}", handle);
-                cb(command_handle, err, handle)
+                let err = result_to_err_code!(result);
+                trace!("indy_import_wallet: cb command_handle: {:?}, err: {:?}", command_handle, err);
+                cb(command_handle, err)
             })
         )));
 
     let res = result_to_err_code!(result);
-
-    trace!("indy_open_wallet: <<< res: {:?}", res);
-
+    trace!("indy_import_wallet: <<< res: {:?}", res);
     res
 }
 
-/// Lists created wallets as JSON array with each wallet metadata: name, type, name of associated pool
-///
-/// #Returns
-/// wallets list json: [{
-///    "name": <string>
-///    "type": <string>
-///    "pool_name": <string>
-/// }].
-///
-/// #Errors
-/// Common*
-/// Wallet*
-#[no_mangle]
-pub extern fn indy_list_wallets(command_handle: i32,
-                                cb: Option<extern fn(xcommand_handle: i32,
-                                                     err: ErrorCode,
-                                                     wallets: *const c_char)>) -> ErrorCode {
-    trace!("indy_list_wallets: >>>");
-
-    check_useful_c_callback!(cb, ErrorCode::CommonInvalidParam2);
-
-    trace!("indy_list_wallets: entities >>>");
-
-    let result = CommandExecutor::instance()
-        .send(Command::Wallet(WalletCommand::ListWallets(
-            Box::new(move |result| {
-                let (err, wallets) = result_to_err_code_1!(result, String::new());
-                trace!("indy_list_wallets: wallets: {:?}", wallets);
-                let wallets = CStringUtils::string_to_cstring(wallets);
-                cb(command_handle, err, wallets.as_ptr())
-            })
-        )));
-
-    let res = result_to_err_code!(result);
-
-    trace!("indy_list_wallets: <<< res: {:?}", res);
-
-    res
-}
 
 /// Closes opened wallet and frees allocated resources.
 ///
 /// #Params
-/// handle: wallet handle returned by indy_open_wallet.
+/// wallet_handle: wallet handle returned by indy_open_wallet.
 ///
 /// #Returns
 /// Error code
@@ -321,43 +427,60 @@ pub extern fn indy_list_wallets(command_handle: i32,
 /// Wallet*
 #[no_mangle]
 pub extern fn indy_close_wallet(command_handle: i32,
-                                handle: i32,
+                                wallet_handle: i32,
                                 cb: Option<extern fn(xcommand_handle: i32,
                                                      err: ErrorCode)>) -> ErrorCode {
-    trace!("indy_close_wallet: >>> handle: {:?}", handle);
+    trace!("indy_close_wallet: >>> command_handle: {:?}, wallet_handle: {:?}, cb: {:?}",
+           command_handle, wallet_handle, cb);
 
     check_useful_c_callback!(cb, ErrorCode::CommonInvalidParam3);
 
-    trace!("indy_close_wallet: entities >>> handle: {:?}", handle);
+    trace!("indy_close_wallet: params wallet_handle: {:?}", wallet_handle);
 
     let result = CommandExecutor::instance()
         .send(Command::Wallet(WalletCommand::Close(
-            handle,
+            wallet_handle,
             Box::new(move |result| {
                 let err = result_to_err_code!(result);
-                trace!("indy_close_wallet:");
+                trace!("indy_close_wallet: cb command_handle: {:?}, err: {:?}", command_handle, err);
                 cb(command_handle, err)
             })
         )));
 
     let res = result_to_err_code!(result);
-
     trace!("indy_close_wallet: <<< res: {:?}", res);
-
     res
 }
 
 /// Deletes created wallet.
 ///
 /// #Params
-/// name: Name of the wallet to delete.
-/// credentials: Wallet credentials json
+/// config: Wallet configuration json.
+/// {
+///   "id": string, Identifier of the wallet.
+///         Configured storage uses this identifier to lookup exact wallet data placement.
+///   "storage_type": optional<string>, Type of the wallet storage. Defaults to 'default'.
+///                  'Default' storage type allows to store wallet data in the local file.
+///                  Custom storage types can be registered with indy_register_wallet_storage call.
+///   "storage_config": optional<object>, Storage configuration json. Storage type defines set of supported keys.
+///                     Can be optional if storage supports default configuration.
+///                     For 'default' storage type configuration is:
 ///   {
-///       "key": string,
-///       "rekey": Optional<string>,
-///       "storage": Optional<object>  List of supported keys are defined by wallet type.
-///
+///     "path": optional<string>, Path to the directory with wallet files.
+///             Defaults to $HOME/.indy_client/wallets.
+///             Wallet will be stored in the file {path}/{id}/sqlite.db
 ///   }
+/// }
+/// credentials: Wallet credentials json
+/// {
+///   "key": string, Passphrase used to derive wallet master key
+///   "storage_credentials": optional<object> Credentials for wallet storage. Storage type defines set of supported keys.
+///                          Can be optional if storage supports default configuration.
+///                          For 'default' storage type should be empty.
+///   "key_derivation_method": optional<string> algorithm to use for master key derivation:
+///                            ARAGON2I_MOD (used by default)
+///                            ARAGON2I_INT - less secured but faster
+/// }
 ///
 /// #Returns
 /// Error code
@@ -367,33 +490,32 @@ pub extern fn indy_close_wallet(command_handle: i32,
 /// Wallet*
 #[no_mangle]
 pub extern fn indy_delete_wallet(command_handle: i32,
-                                 name: *const c_char,
-                                 credentials_json: *const c_char,
+                                 config: *const c_char,
+                                 credentials: *const c_char,
                                  cb: Option<extern fn(xcommand_handle: i32,
                                                       err: ErrorCode)>) -> ErrorCode {
-    trace!("indy_delete_wallet: >>> name: {:?}, credentials_json: {:?}", name, credentials_json);
+    trace!("indy_delete_wallet: >>> command_handle: {:?}, config: {:?}, credentials: {:?}, cb: {:?}",
+           command_handle, config, credentials, cb);
 
-    check_useful_c_str!(name, ErrorCode::CommonInvalidParam2);
-    check_useful_c_str!(credentials_json, ErrorCode::CommonInvalidParam3);
+    check_useful_c_str!(config, ErrorCode::CommonInvalidParam2);
+    check_useful_c_str!(credentials, ErrorCode::CommonInvalidParam3);
     check_useful_c_callback!(cb, ErrorCode::CommonInvalidParam4);
 
-    trace!("indy_delete_wallet: entities >>> name: {:?}, credentials_json: {:?}", name, credentials_json);
+    trace!("indy_delete_wallet: params config: {:?}, credentials: {:?}", config, secret!(credentials.as_str()));
 
     let result = CommandExecutor::instance()
         .send(Command::Wallet(WalletCommand::Delete(
-            name,
-            credentials_json,
+            config,
+            credentials,
             Box::new(move |result| {
                 let err = result_to_err_code!(result);
-                trace!("indy_delete_wallet:");
+                trace!("indy_delete_wallet: cb command_handle: {:?}, err: {:?}", command_handle, err);
                 cb(command_handle, err)
             })
         )));
 
     let res = result_to_err_code!(result);
-
     trace!("indy_delete_wallet: <<< res: {:?}", res);
-
     res
 }
 
@@ -414,12 +536,10 @@ pub type WalletCreate = extern fn(name: *const c_char,
 /// #Params
 /// name: wallet storage name (the same as wallet name)
 /// config: wallet storage config (For example, database config)
-/// runtime_config: wallet storage runtime config (For example, connection config)
 /// credentials_json: wallet storage credentials (For example, database credentials)
 /// storage_handle_p: pointer to store opened storage handle
 pub type WalletOpen = extern fn(name: *const c_char,
                                 config: *const c_char,
-                                runtime_config: *const c_char,
                                 credentials_json: *const c_char,
                                 storage_handle_p: *mut i32) -> ErrorCode;
 
@@ -541,7 +661,7 @@ pub type WalletDeleteRecord = extern fn(storage_handle: i32,
 /// storage_handle: opened storage handle (See open handler)
 /// type_: allows to separate different record types collections
 /// id: the id of record
-/// options_json: //TODO: FIXME: Think about replacing by bitmaks
+/// options_json: //TODO: FIXME: Think about replacing by bitmask
 ///  {
 ///    retrieveType: (optional, false by default) Retrieve record type,
 ///    retrieveValue: (optional, true by default) Retrieve record value,
@@ -659,7 +779,7 @@ pub type WalletFreeStorageMetadata = extern fn(storage_handle: i32,
 ///      "tagName3": { $gte: 123 },
 ///    },
 ///  }
-/// options_json: //TODO: FIXME: Think about replacing by bitmaks
+/// options_json: //TODO: FIXME: Think about replacing by bitmask
 ///  {
 ///    retrieveRecords: (optional, true by default) If false only "counts" will be calculated,
 ///    retrieveTotalCount: (optional, false by default) Calculate total count,

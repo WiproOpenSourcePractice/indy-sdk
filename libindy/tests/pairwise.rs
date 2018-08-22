@@ -1,19 +1,30 @@
+#[macro_use]
+extern crate lazy_static;
+
+#[macro_use]
+extern crate named_type_derive;
+
+#[macro_use]
+extern crate derivative;
+
+#[macro_use]
+extern crate serde_derive;
+
+#[macro_use]
+extern crate serde_json;
+
+extern crate byteorder;
 extern crate indy;
+extern crate indy_crypto;
+extern crate uuid;
+extern crate named_type;
+extern crate rmp_serde;
+extern crate rust_base58;
+extern crate time;
+extern crate serde;
 
 // Workaround to share some utils code based on indy sdk types between tests and indy sdk
 use indy::api as api;
-
-extern crate rust_base58;
-#[macro_use]
-extern crate serde_derive;
-#[macro_use]
-extern crate serde_json;
-#[macro_use]
-extern crate lazy_static;
-extern crate log;
-extern crate named_type;
-#[macro_use]
-extern crate named_type_derive;
 
 #[macro_use]
 mod utils;
@@ -37,7 +48,7 @@ mod high_cases {
         fn indy_create_pairwise_works() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             let (my_did, _) = DidUtils::create_and_store_my_did(wallet_handle, Some(MY1_SEED)).unwrap();
 
@@ -54,7 +65,7 @@ mod high_cases {
         fn indy_create_pairwise_works_for_empty_metadata() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             let (my_did, _) = DidUtils::create_and_store_my_did(wallet_handle, Some(MY1_SEED)).unwrap();
 
@@ -71,7 +82,7 @@ mod high_cases {
         fn indy_create_pairwise_works_for_not_found_my_did() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             DidUtils::store_their_did_from_parts(wallet_handle, DID_TRUSTEE, VERKEY_TRUSTEE).unwrap();
 
@@ -86,7 +97,7 @@ mod high_cases {
         fn indy_create_pairwise_works_for_not_found_their_did() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             let (my_did, _) = DidUtils::create_and_store_my_did(wallet_handle, Some(MY1_SEED)).unwrap();
 
@@ -101,7 +112,7 @@ mod high_cases {
         fn indy_create_pairwise_works_for_invalid_wallet_handle() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             let (my_did, _) = DidUtils::create_and_store_my_did(wallet_handle, Some(MY1_SEED)).unwrap();
 
@@ -118,7 +129,7 @@ mod high_cases {
         fn indy_create_pairwise_works_for_twice() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             let (my_did, _) = DidUtils::create_and_store_my_did(wallet_handle, Some(MY1_SEED)).unwrap();
 
@@ -142,7 +153,7 @@ mod high_cases {
         fn indy_list_pairwise_works() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             let (my_did, _) = DidUtils::create_and_store_my_did(wallet_handle, Some(MY1_SEED)).unwrap();
 
@@ -165,7 +176,7 @@ mod high_cases {
         fn indy_list_pairwise_works_for_empty_result() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             let list_pairwise_json = PairwiseUtils::list_pairwise(wallet_handle).unwrap();
             let list_pairwise: Vec<String> = serde_json::from_str(&list_pairwise_json).unwrap();
@@ -181,7 +192,7 @@ mod high_cases {
         fn indy_list_pairwise_works_for_invalid_handle() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             let (my_did, _) = DidUtils::create_and_store_my_did(wallet_handle, Some(MY1_SEED)).unwrap();
 
@@ -204,7 +215,7 @@ mod high_cases {
         fn indy_is_pairwise_exists_works() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             let (my_did, _) = DidUtils::create_and_store_my_did(wallet_handle, Some(MY1_SEED)).unwrap();
 
@@ -223,7 +234,7 @@ mod high_cases {
         fn indy_is_pairwise_exists_works_for_not_created() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             assert!(!PairwiseUtils::pairwise_exists(wallet_handle, DID_TRUSTEE).unwrap());
 
@@ -236,7 +247,7 @@ mod high_cases {
         fn indy_is_pairwise_exists_works_for_invalid_handle() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             let (my_did, _) = DidUtils::create_and_store_my_did(wallet_handle, Some(MY1_SEED)).unwrap();
 
@@ -259,7 +270,7 @@ mod high_cases {
         fn indy_get_pairwise_works() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             let (my_did, _) = DidUtils::create_and_store_my_did(wallet_handle, Some(MY1_SEED)).unwrap();
 
@@ -279,7 +290,7 @@ mod high_cases {
         fn indy_get_pairwise_works_for_not_created_pairwise() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             assert_eq!(ErrorCode::WalletItemNotFound, PairwiseUtils::get_pairwise(wallet_handle, DID_TRUSTEE).unwrap_err());
 
@@ -292,7 +303,7 @@ mod high_cases {
         fn indy_get_pairwise_works_for_invalid_handle() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             let (my_did, _) = DidUtils::create_and_store_my_did(wallet_handle, Some(MY1_SEED)).unwrap();
 
@@ -315,7 +326,7 @@ mod high_cases {
         fn indy_set_pairwise_metadata_works() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             let (my_did, _) = DidUtils::create_and_store_my_did(wallet_handle, Some(MY1_SEED)).unwrap();
 
@@ -341,7 +352,7 @@ mod high_cases {
         fn indy_set_pairwise_metadata_works_for_reset() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             let (my_did, _) = DidUtils::create_and_store_my_did(wallet_handle, Some(MY1_SEED)).unwrap();
 
@@ -367,7 +378,7 @@ mod high_cases {
         fn indy_set_pairwise_metadata_works_for_not_created_pairwise() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             DidUtils::create_and_store_my_did(wallet_handle, Some(MY1_SEED)).unwrap();
 
@@ -382,7 +393,7 @@ mod high_cases {
         fn indy_set_pairwise_metadata_works_for_invalid_wallet_handle() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             let (my_did, _) = DidUtils::create_and_store_my_did(wallet_handle, Some(MY1_SEED)).unwrap();
 

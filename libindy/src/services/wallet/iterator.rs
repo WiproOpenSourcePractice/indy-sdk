@@ -5,8 +5,7 @@ use errors::wallet::WalletError;
 use super::WalletRecord;
 use super::wallet::Keys;
 use super::storage::StorageIterator;
-use super::encryption::{decrypt, decrypt_tags};
-
+use super::encryption::{decrypt_storage_record};
 
 pub(super) struct WalletIterator {
     storage_iterator: Box<StorageIterator>,
@@ -25,22 +24,8 @@ impl WalletIterator {
     pub fn next(&mut self) -> Result<Option<WalletRecord>, WalletError> {
         let next_storage_entity = self.storage_iterator.next()?;
         if let Some(next_storage_entity) = next_storage_entity {
-            let decrypted_name = decrypt(&next_storage_entity.name, &self.keys.name_key)?;
-            let name = String::from_utf8(decrypted_name)?;
-
-            let value = match next_storage_entity.value {
-                None => None,
-                Some(encrypted_value) => Some(encrypted_value.decrypt(&self.keys.value_key)?)
-            };
-
-            let tags = decrypt_tags(&next_storage_entity.tags, &self.keys.tag_name_key, &self.keys.tag_value_key)?;
-
-            let type_ = match next_storage_entity.type_ {
-                None => None,
-                Some(encrypted_type) => Some(String::from_utf8(decrypt(&encrypted_type, &self.keys.type_key)?)?)
-            };
-
-            Ok(Some(WalletRecord::new(name, type_, value, tags)))
+            let record = decrypt_storage_record(&next_storage_entity, &self.keys)?;
+            Ok(Some(record))
         } else { Ok(None) }
     }
 

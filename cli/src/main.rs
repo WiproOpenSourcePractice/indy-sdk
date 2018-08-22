@@ -1,3 +1,5 @@
+#![cfg_attr(feature = "fatal_warnings", deny(warnings))]
+
 extern crate ansi_term;
 extern crate unescape;
 #[macro_use]
@@ -33,7 +35,7 @@ use std::io::BufReader;
 use std::rc::Rc;
 
 fn main() {
-    utils::logger::LoggerUtils::init();
+    utils::logger::init();
 
     if env::args().find(|a| a == "-h" || a == "--help").is_some() {
         return _print_help();
@@ -77,6 +79,7 @@ fn build_executor() -> CommandExecutor {
         .add_group(pool::group::new())
         .add_command(pool::create_command::new())
         .add_command(pool::connect_command::new())
+        .add_command(pool::refresh_command::new())
         .add_command(pool::list_command::new())
         .add_command(pool::disconnect_command::new())
         .add_command(pool::delete_command::new())
@@ -87,6 +90,8 @@ fn build_executor() -> CommandExecutor {
         .add_command(wallet::list_command::new())
         .add_command(wallet::close_command::new())
         .add_command(wallet::delete_command::new())
+        .add_command(wallet::export_command::new())
+        .add_command(wallet::import_command::new())
         .finalize_group()
         .add_group(ledger::group::new())
         .add_command(ledger::nym_command::new())
@@ -103,11 +108,12 @@ fn build_executor() -> CommandExecutor {
         .add_command(ledger::pool_restart_command::new())
         .add_command(ledger::pool_upgrade_command::new())
         .add_command(ledger::custom_command::new())
-        .add_command(ledger::get_utxo_command::new())
+        .add_command(ledger::get_payment_sources_command::new())
         .add_command(ledger::payment_command::new())
         .add_command(ledger::get_fees_command::new())
         .add_command(ledger::mint_prepare_command::new())
         .add_command(ledger::set_fees_prepare_command::new())
+        .add_command(ledger::verify_payment_receipt_command::new())
         .add_command(ledger::sign_multi_command::new())
         .finalize_group()
         .add_group(payment_address::group::new())

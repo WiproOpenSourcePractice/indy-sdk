@@ -1,25 +1,38 @@
+#[macro_use]
+extern crate lazy_static;
+
+#[macro_use]
+extern crate named_type_derive;
+
+#[macro_use]
+extern crate derivative;
+
+#[macro_use]
+extern crate serde_derive;
+
+#[macro_use]
+extern crate serde_json;
+
+extern crate byteorder;
 extern crate indy;
+extern crate indy_crypto;
+extern crate uuid;
+extern crate named_type;
+extern crate rmp_serde;
+extern crate rust_base58;
+extern crate time;
+extern crate serde;
 
 // Workaround to share some utils code based on indy sdk types between tests and indy sdk
 use indy::api as api;
 
 #[macro_use]
-extern crate serde_derive;
-#[macro_use]
-extern crate serde_json;
-#[macro_use]
-extern crate lazy_static;
-extern crate named_type;
-#[macro_use]
-extern crate named_type_derive;
-
-#[macro_use]
 mod utils;
 
+use utils::constants::WALLET_CREDENTIALS;
 use utils::wallet::WalletUtils;
 use utils::non_secrets::*;
 use utils::test::TestUtils;
-use utils::constants::POOL;
 use utils::types::{WalletRecord, SearchRecords};
 
 use std::collections::HashMap;
@@ -39,7 +52,7 @@ mod high_cases {
         fn indy_add_wallet_record_works() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             NonSecretsUtils::add_wallet_record(wallet_handle, TYPE, ID, VALUE, None).unwrap();
 
@@ -52,7 +65,7 @@ mod high_cases {
         fn indy_add_wallet_record_works_for_plugged_wallet() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_plugged_wallet(POOL).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_plugged_wallet().unwrap();
 
             NonSecretsUtils::add_wallet_record(wallet_handle, TYPE, ID, VALUE, None).unwrap();
 
@@ -65,7 +78,7 @@ mod high_cases {
         fn indy_add_wallet_record_works_for_duplicate() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             NonSecretsUtils::add_wallet_record(wallet_handle, TYPE, ID, VALUE, None).unwrap();
 
@@ -81,7 +94,7 @@ mod high_cases {
         fn indy_add_wallet_record_works_for_tags() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             NonSecretsUtils::add_wallet_record(wallet_handle, TYPE, ID, VALUE, Some(TAGS)).unwrap();
             check_record_field(wallet_handle, TYPE, ID, "tags", TAGS);
@@ -95,7 +108,7 @@ mod high_cases {
         fn indy_add_wallet_record_works_same_types_different_ids() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             NonSecretsUtils::add_wallet_record(wallet_handle, TYPE, ID, VALUE, None).unwrap();
             NonSecretsUtils::add_wallet_record(wallet_handle, TYPE, ID_2, VALUE, None).unwrap();
@@ -109,7 +122,7 @@ mod high_cases {
         fn indy_add_wallet_record_works_same_ids_different_types() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             NonSecretsUtils::add_wallet_record(wallet_handle, TYPE, ID, VALUE, None).unwrap();
             NonSecretsUtils::add_wallet_record(wallet_handle, TYPE_2, ID, VALUE, None).unwrap();
@@ -123,7 +136,7 @@ mod high_cases {
         fn indy_add_wallet_record_works_for_invalid_type() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             let res = NonSecretsUtils::add_wallet_record(wallet_handle, FORBIDDEN_TYPE, ID, VALUE, None);
             assert_eq!(ErrorCode::WalletAccessFailed, res.unwrap_err());
@@ -137,7 +150,7 @@ mod high_cases {
         fn indy_add_wallet_record_works_for_invalid_handle() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             let invalid_wallet_handle = wallet_handle + 1;
 
@@ -153,7 +166,7 @@ mod high_cases {
         fn indy_add_wallet_record_works_for_invalid_tags() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             let res = NonSecretsUtils::add_wallet_record(wallet_handle, TYPE, ID, VALUE, Some(r#"tag:1"#));
             assert_eq!(ErrorCode::CommonInvalidStructure, res.unwrap_err());
@@ -167,7 +180,7 @@ mod high_cases {
         fn indy_add_wallet_record_works_for_empty_params() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             let res = NonSecretsUtils::add_wallet_record(wallet_handle, "", ID, VALUE, None);
             assert_eq!(ErrorCode::CommonInvalidParam3, res.unwrap_err());
@@ -188,7 +201,7 @@ mod high_cases {
         fn indy_update_record_value_works() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             NonSecretsUtils::add_wallet_record(wallet_handle, TYPE, ID, VALUE, None).unwrap();
 
@@ -207,7 +220,7 @@ mod high_cases {
         fn indy_update_record_value_works_for_plugged_wallet() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_plugged_wallet(POOL).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_plugged_wallet().unwrap();
 
             NonSecretsUtils::add_wallet_record(wallet_handle, TYPE, ID, VALUE, None).unwrap();
 
@@ -226,7 +239,7 @@ mod high_cases {
         fn indy_update_record_value_works_for_not_found_record() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             let res = NonSecretsUtils::update_wallet_record_value(wallet_handle, TYPE, ID, VALUE);
             assert_eq!(ErrorCode::WalletItemNotFound, res.unwrap_err());
@@ -240,7 +253,7 @@ mod high_cases {
         fn indy_update_record_value_works_for_invalid_wallet_handle() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             NonSecretsUtils::add_wallet_record(wallet_handle, TYPE, ID, VALUE, None).unwrap();
 
@@ -258,7 +271,7 @@ mod high_cases {
         fn indy_update_record_value_works_for_empty_value() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             NonSecretsUtils::add_wallet_record(wallet_handle, TYPE, ID, VALUE, None).unwrap();
 
@@ -274,7 +287,7 @@ mod high_cases {
         fn indy_update_record_value_works_for_invalid_type() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             NonSecretsUtils::add_wallet_record(wallet_handle, TYPE, ID, VALUE, None).unwrap();
 
@@ -294,7 +307,7 @@ mod high_cases {
         fn indy_update_wallet_record_tags_works() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             NonSecretsUtils::add_wallet_record(wallet_handle, TYPE, ID, VALUE, None).unwrap();
 
@@ -313,7 +326,7 @@ mod high_cases {
         fn indy_update_wallet_record_tags_works_for_twice() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             NonSecretsUtils::add_wallet_record(wallet_handle, TYPE, ID, VALUE, None).unwrap();
 
@@ -336,7 +349,7 @@ mod high_cases {
         fn indy_update_wallet_record_tags_works_for_not_found_record() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             let res = NonSecretsUtils::update_wallet_record_tags(wallet_handle, TYPE, ID, TAGS);
             assert_eq!(ErrorCode::WalletItemNotFound, res.unwrap_err());
@@ -350,7 +363,7 @@ mod high_cases {
         fn indy_update_wallet_record_tags_works_for_empty() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             NonSecretsUtils::add_wallet_record(wallet_handle, TYPE, ID, VALUE, None).unwrap();
 
@@ -366,7 +379,7 @@ mod high_cases {
         fn indy_update_wallet_record_tags_works_for_invalid_wallet_handle() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             NonSecretsUtils::add_wallet_record(wallet_handle, TYPE, ID, VALUE, None).unwrap();
 
@@ -384,7 +397,7 @@ mod high_cases {
         fn indy_update_wallet_record_tags_works_for_invalid_type() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             NonSecretsUtils::add_wallet_record(wallet_handle, TYPE, ID, VALUE, None).unwrap();
 
@@ -404,7 +417,7 @@ mod high_cases {
         fn indy_add_wallet_record_tags_works() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             NonSecretsUtils::add_wallet_record(wallet_handle, TYPE, ID, VALUE, None).unwrap();
 
@@ -423,7 +436,7 @@ mod high_cases {
         fn indy_add_wallet_record_tags_works_for_twice() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             NonSecretsUtils::add_wallet_record(wallet_handle, TYPE, ID, VALUE, None).unwrap();
 
@@ -450,7 +463,7 @@ mod high_cases {
         fn indy_add_wallet_record_tags_works_for_twice_add_same_tag() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             NonSecretsUtils::add_wallet_record(wallet_handle, TYPE, ID, VALUE, Some(TAGS)).unwrap();
 
@@ -469,7 +482,7 @@ mod high_cases {
         fn indy_add_wallet_record_tags_works_for_rewrite_tag() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             NonSecretsUtils::add_wallet_record(wallet_handle, TYPE, ID, VALUE, Some(TAGS)).unwrap();
 
@@ -490,7 +503,7 @@ mod high_cases {
         fn indy_add_wallet_record_tags_works_for_not_found_record() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             let res = NonSecretsUtils::add_wallet_record_tags(wallet_handle, TYPE, ID, TAGS);
             assert_eq!(ErrorCode::WalletItemNotFound, res.unwrap_err());
@@ -504,7 +517,7 @@ mod high_cases {
         fn indy_add_wallet_record_tags_works_for_not_invalid_handle() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             NonSecretsUtils::add_wallet_record(wallet_handle, TYPE, ID, VALUE, None).unwrap();
 
@@ -521,7 +534,7 @@ mod high_cases {
         fn indy_add_wallet_record_tags_works_for_not_invalid_type() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             NonSecretsUtils::add_wallet_record(wallet_handle, TYPE, ID, VALUE, None).unwrap();
 
@@ -541,7 +554,7 @@ mod high_cases {
         fn indy_delete_wallet_record_tags_works() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             NonSecretsUtils::add_wallet_record(wallet_handle, TYPE, ID, VALUE, Some(TAGS)).unwrap();
 
@@ -559,7 +572,7 @@ mod high_cases {
         fn indy_delete_wallet_record_tags_works_for_delete_all() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             NonSecretsUtils::add_wallet_record(wallet_handle, TYPE, ID, VALUE, Some(TAGS)).unwrap();
 
@@ -576,7 +589,7 @@ mod high_cases {
         fn indy_delete_wallet_record_tags_works_for_not_found_record() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             let res = NonSecretsUtils::delete_wallet_record_tags(wallet_handle, TYPE, ID, r#"["tagName1"]"#);
             assert_eq!(ErrorCode::WalletItemNotFound, res.unwrap_err());
@@ -590,7 +603,7 @@ mod high_cases {
         fn indy_delete_wallet_record_tags_works_for_not_found_tag() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             NonSecretsUtils::add_wallet_record(wallet_handle, TYPE, ID, VALUE, Some(TAGS_EMPTY)).unwrap();
 
@@ -605,7 +618,7 @@ mod high_cases {
         fn indy_delete_wallet_record_tags_works_for_twice_delete() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             NonSecretsUtils::add_wallet_record(wallet_handle, TYPE, ID, VALUE, Some(TAGS)).unwrap();
 
@@ -624,7 +637,7 @@ mod high_cases {
         fn indy_delete_wallet_record_tags_works_for_twice_delete_same_tag() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             NonSecretsUtils::add_wallet_record(wallet_handle, TYPE, ID, VALUE, Some(TAGS)).unwrap();
 
@@ -641,7 +654,7 @@ mod high_cases {
         fn indy_delete_wallet_record_tags_works_for_invalid_handle() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             NonSecretsUtils::add_wallet_record(wallet_handle, TYPE, ID, VALUE, Some(TAGS)).unwrap();
 
@@ -658,7 +671,7 @@ mod high_cases {
         fn indy_delete_wallet_record_tags_works_for_invalid_type() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             let res = NonSecretsUtils::delete_wallet_record_tags(wallet_handle, FORBIDDEN_TYPE, ID, r#"["tagName1"]"#);
             assert_eq!(ErrorCode::WalletAccessFailed, res.unwrap_err());
@@ -676,7 +689,7 @@ mod high_cases {
         fn indy_delete_wallet_record_works() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             NonSecretsUtils::add_wallet_record(wallet_handle, TYPE, ID, VALUE, None).unwrap();
 
@@ -696,7 +709,7 @@ mod high_cases {
         fn indy_delete_wallet_record_works_for_not_found_record() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             let res = NonSecretsUtils::delete_wallet_record(wallet_handle, TYPE, ID);
             assert_eq!(ErrorCode::WalletItemNotFound, res.unwrap_err());
@@ -710,7 +723,7 @@ mod high_cases {
         fn indy_delete_wallet_record_works_for_twice() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             NonSecretsUtils::add_wallet_record(wallet_handle, TYPE, ID, VALUE, None).unwrap();
 
@@ -730,7 +743,7 @@ mod high_cases {
         fn indy_delete_wallet_record_works_for_invalid_handle() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             NonSecretsUtils::add_wallet_record(wallet_handle, TYPE, ID, VALUE, None).unwrap();
 
@@ -748,7 +761,7 @@ mod high_cases {
         fn indy_delete_wallet_record_works_for_empty_params() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             NonSecretsUtils::add_wallet_record(wallet_handle, TYPE, ID, VALUE, None).unwrap();
 
@@ -767,7 +780,7 @@ mod high_cases {
         fn indy_delete_wallet_record_works_for_invalid_type() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             NonSecretsUtils::add_wallet_record(wallet_handle, TYPE, ID, VALUE, None).unwrap();
 
@@ -787,7 +800,7 @@ mod high_cases {
         fn indy_get_wallet_record_works_for_default_options() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             NonSecretsUtils::add_wallet_record(wallet_handle, TYPE, ID, VALUE, None).unwrap();
 
@@ -806,7 +819,7 @@ mod high_cases {
         fn indy_get_wallet_record_works_for_plugged_wallet_default_options() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_plugged_wallet(POOL).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_plugged_wallet().unwrap();
 
             NonSecretsUtils::add_wallet_record(wallet_handle, TYPE, ID, VALUE, None).unwrap();
 
@@ -825,7 +838,7 @@ mod high_cases {
         fn indy_get_wallet_record_works_for_id_only() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             NonSecretsUtils::add_wallet_record(wallet_handle, TYPE, ID, VALUE, None).unwrap();
 
@@ -850,7 +863,7 @@ mod high_cases {
         fn indy_get_wallet_record_works_for_id_value() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             NonSecretsUtils::add_wallet_record(wallet_handle, TYPE, ID, VALUE, None).unwrap();
 
@@ -875,7 +888,7 @@ mod high_cases {
         fn indy_get_wallet_record_works_for_id_tags() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             NonSecretsUtils::add_wallet_record(wallet_handle, TYPE, ID, VALUE, None).unwrap();
 
@@ -900,7 +913,7 @@ mod high_cases {
         fn indy_get_wallet_record_works_for_full() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             NonSecretsUtils::add_wallet_record(wallet_handle, TYPE, ID, VALUE, None).unwrap();
 
@@ -925,7 +938,7 @@ mod high_cases {
         fn indy_get_wallet_record_works_for_not_found() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             let res = NonSecretsUtils::get_wallet_record(wallet_handle, TYPE, ID, OPTIONS_EMPTY);
             assert_eq!(ErrorCode::WalletItemNotFound, res.unwrap_err());
@@ -939,7 +952,7 @@ mod high_cases {
         fn indy_get_wallet_record_works_for_invalid_options() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             NonSecretsUtils::add_wallet_record(wallet_handle, TYPE, ID, VALUE, None).unwrap();
 
@@ -956,7 +969,7 @@ mod high_cases {
         fn indy_get_wallet_record_works_for_invalid_type() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             NonSecretsUtils::add_wallet_record(wallet_handle, TYPE, ID, VALUE, None).unwrap();
 
@@ -985,7 +998,7 @@ mod high_cases {
             #[test]
             fn indy_wallet_search_for_empty_query() {
                 NonSecretsUtils::populate_wallet_for_search();
-                let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET, None, None).unwrap();
+                let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET_CONFIG, WALLET_CREDENTIALS).unwrap();
 
                 let search_handle = NonSecretsUtils::open_wallet_search(wallet_handle, TYPE, QUERY_EMPTY, OPTIONS_FULL).unwrap();
 
@@ -1004,7 +1017,7 @@ mod high_cases {
             #[test]
             fn indy_wallet_search_for_eq_query() {
                 NonSecretsUtils::populate_wallet_for_search();
-                let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET, None, None).unwrap();
+                let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET_CONFIG, WALLET_CREDENTIALS).unwrap();
 
                 let query_json = r#"{
                     "tagName1": "str1"
@@ -1024,7 +1037,7 @@ mod high_cases {
             #[test]
             fn indy_wallet_search_for_neq_query() {
                 NonSecretsUtils::populate_wallet_for_search();
-                let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET, None, None).unwrap();
+                let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET_CONFIG, WALLET_CREDENTIALS).unwrap();
 
                 let query_json = r#"{
                     "tagName1": {"$neq": "str1"}
@@ -1045,7 +1058,7 @@ mod high_cases {
             #[test]
             fn indy_wallet_search_for_gt_query() {
                 NonSecretsUtils::populate_wallet_for_search();
-                let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET, None, None).unwrap();
+                let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET_CONFIG, WALLET_CREDENTIALS).unwrap();
 
                 let query_json = r#"{
                     "~tagName3": {"$gt": "6"}
@@ -1064,7 +1077,7 @@ mod high_cases {
             #[test]
             fn indy_wallet_search_for_gte_query() {
                 NonSecretsUtils::populate_wallet_for_search();
-                let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET, None, None).unwrap();
+                let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET_CONFIG, WALLET_CREDENTIALS).unwrap();
 
                 let query_json = r#"{
                     "~tagName3": {"$gte": "6"}
@@ -1084,7 +1097,7 @@ mod high_cases {
             #[test]
             fn indy_wallet_search_for_lt_query() {
                 NonSecretsUtils::populate_wallet_for_search();
-                let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET, None, None).unwrap();
+                let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET_CONFIG, WALLET_CREDENTIALS).unwrap();
 
                 let query_json = r#"{
                     "~tagName3": {"$lt": "5"}
@@ -1103,7 +1116,7 @@ mod high_cases {
             #[test]
             fn indy_wallet_search_for_lte_query() {
                 NonSecretsUtils::populate_wallet_for_search();
-                let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET, None, None).unwrap();
+                let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET_CONFIG, WALLET_CREDENTIALS).unwrap();
 
                 let query_json = r#"{
                     "~tagName3": {"$lte": "5"}
@@ -1123,7 +1136,7 @@ mod high_cases {
             #[test]
             fn indy_wallet_search_for_like_query() {
                 NonSecretsUtils::populate_wallet_for_search();
-                let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET, None, None).unwrap();
+                let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET_CONFIG, WALLET_CREDENTIALS).unwrap();
 
                 let query_json = r#"{
                     "~tagName2": {"$like": "%str3%"}
@@ -1143,7 +1156,7 @@ mod high_cases {
             #[test]
             fn indy_wallet_search_for_in_query() {
                 NonSecretsUtils::populate_wallet_for_search();
-                let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET, None, None).unwrap();
+                let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET_CONFIG, WALLET_CREDENTIALS).unwrap();
 
                 let query_json = r#"{
                     "tagName1": {"$in": ["str1", "str2"]}
@@ -1164,7 +1177,7 @@ mod high_cases {
             #[test]
             fn indy_wallet_search_for_and_query() {
                 NonSecretsUtils::populate_wallet_for_search();
-                let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET, None, None).unwrap();
+                let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET_CONFIG, WALLET_CREDENTIALS).unwrap();
 
                 let query_json = r#"{
                     "tagName1": "str1",
@@ -1184,7 +1197,7 @@ mod high_cases {
             #[test]
             fn indy_wallet_search_for_or_query() {
                 NonSecretsUtils::populate_wallet_for_search();
-                let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET, None, None).unwrap();
+                let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET_CONFIG, WALLET_CREDENTIALS).unwrap();
 
                 let query_json = r#"{
                     "$or": [
@@ -1207,7 +1220,7 @@ mod high_cases {
             #[test]
             fn indy_wallet_search_for_not_query() {
                 NonSecretsUtils::populate_wallet_for_search();
-                let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET, None, None).unwrap();
+                let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET_CONFIG, WALLET_CREDENTIALS).unwrap();
 
                 let query_json = r#"{
                     "$not": {"tagName1": "str1"}
@@ -1226,19 +1239,24 @@ mod high_cases {
             }
 
             #[test]
-            #[ignore] //TODO: doesn't work
             fn indy_wallet_search_for_mix_and_or_query() {
                 NonSecretsUtils::populate_wallet_for_search();
-                let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET, None, None).unwrap();
+                let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET_CONFIG, WALLET_CREDENTIALS).unwrap();
 
                 let query_json = r#"{
-                    "$or": [
-                        {"tagName1": "str1"},
-                        {"tagName2": "str1"}
-                    ],
-                    "$or": [
-                        {"tagName1": "str2"},
-                        {"tagName2": "str2"}
+                    "$and": [
+                        {
+                            "$or": [
+                                {"tagName1": "str1"},
+                                {"tagName2": "str1"}
+                            ]
+                        },
+                        {
+                            "$or": [
+                                {"tagName1": "str2"},
+                                {"tagName2": "str2"}
+                            ]
+                        }
                     ]
                 }"#;
 
@@ -1255,7 +1273,7 @@ mod high_cases {
             #[test]
             fn indy_wallet_search_for_no_records() {
                 NonSecretsUtils::populate_wallet_for_search();
-                let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET, None, None).unwrap();
+                let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET_CONFIG, WALLET_CREDENTIALS).unwrap();
 
                 let query_json = r#"{
                     "tagName1": "no_records"
@@ -1280,7 +1298,7 @@ mod high_cases {
             #[test]
             fn indy_wallet_search_for_default_options() {
                 NonSecretsUtils::populate_wallet_for_search();
-                let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET, None, None).unwrap();
+                let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET_CONFIG, WALLET_CREDENTIALS).unwrap();
 
                 let search_handle = NonSecretsUtils::open_wallet_search(wallet_handle, TYPE, QUERY_EMPTY, OPTIONS_EMPTY).unwrap();
 
@@ -1300,7 +1318,7 @@ mod high_cases {
             #[test]
             fn indy_wallet_search_for_retrieve_id_value() {
                 NonSecretsUtils::populate_wallet_for_search();
-                let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET, None, None).unwrap();
+                let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET_CONFIG, WALLET_CREDENTIALS).unwrap();
 
                 let options = json!({
                     "retrieveRecords": true,
@@ -1328,7 +1346,7 @@ mod high_cases {
             #[test]
             fn indy_wallet_search_for_retrieve_id_value_tags() {
                 NonSecretsUtils::populate_wallet_for_search();
-                let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET, None, None).unwrap();
+                let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET_CONFIG, WALLET_CREDENTIALS).unwrap();
 
                 let options = json!({
                     "retrieveRecords": true,
@@ -1356,7 +1374,7 @@ mod high_cases {
             #[test]
             fn indy_wallet_search_for_retrieve_full_record() {
                 NonSecretsUtils::populate_wallet_for_search();
-                let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET, None, None).unwrap();
+                let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET_CONFIG, WALLET_CREDENTIALS).unwrap();
 
                 let options = json!({
                     "retrieveRecords": true,
@@ -1383,7 +1401,7 @@ mod high_cases {
             #[test]
             fn indy_wallet_search_for_retrieve_total_count_only() {
                 NonSecretsUtils::populate_wallet_for_search();
-                let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET, None, None).unwrap();
+                let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET_CONFIG, WALLET_CREDENTIALS).unwrap();
 
                 let options = json!({
                     "retrieveRecords": false,
@@ -1408,7 +1426,7 @@ mod high_cases {
             #[test]
             fn indy_wallet_search_for_retrieve_records_only() {
                 NonSecretsUtils::populate_wallet_for_search();
-                let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET, None, None).unwrap();
+                let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET_CONFIG, WALLET_CREDENTIALS).unwrap();
 
                 let options = json!({
                     "retrieveRecords": true,
@@ -1434,7 +1452,7 @@ mod high_cases {
         #[test]
         fn indy_wallet_search_for_fetch_twice() {
             NonSecretsUtils::populate_wallet_for_search();
-            let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET, None, None).unwrap();
+            let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET_CONFIG, WALLET_CREDENTIALS).unwrap();
 
             let search_handle = NonSecretsUtils::open_wallet_search(wallet_handle, TYPE, QUERY_EMPTY, OPTIONS_FULL).unwrap();
 
@@ -1457,7 +1475,7 @@ mod high_cases {
         #[test]
         fn indy_wallet_search_for_no_records() {
             NonSecretsUtils::populate_wallet_for_search();
-            let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET, None, None).unwrap();
+            let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET_CONFIG, WALLET_CREDENTIALS).unwrap();
 
             let search_handle = NonSecretsUtils::open_wallet_search(wallet_handle, TYPE_2, QUERY_EMPTY, OPTIONS_FULL).unwrap();
 
@@ -1474,7 +1492,7 @@ mod high_cases {
         #[test]
         fn indy_wallet_search_for_invalid_wallet_handle() {
             NonSecretsUtils::populate_wallet_for_search();
-            let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET, None, None).unwrap();
+            let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET_CONFIG, WALLET_CREDENTIALS).unwrap();
 
             let invalid_wallet_handle = wallet_handle + 1;
             let res = NonSecretsUtils::open_wallet_search(invalid_wallet_handle, TYPE, QUERY_EMPTY, OPTIONS_EMPTY);
@@ -1486,7 +1504,7 @@ mod high_cases {
         #[test]
         fn indy_wallet_search_for_invalid_search_handle() {
             NonSecretsUtils::populate_wallet_for_search();
-            let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET, None, None).unwrap();
+            let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET_CONFIG, WALLET_CREDENTIALS).unwrap();
 
             let search_handle = NonSecretsUtils::open_wallet_search(wallet_handle, TYPE, QUERY_EMPTY, OPTIONS_EMPTY).unwrap();
 
@@ -1501,7 +1519,7 @@ mod high_cases {
         #[test]
         fn indy_wallet_search_for_invalid_type() {
             NonSecretsUtils::populate_wallet_for_search();
-            let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET, None, None).unwrap();
+            let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET_CONFIG, WALLET_CREDENTIALS).unwrap();
 
             let res = NonSecretsUtils::open_wallet_search(wallet_handle, FORBIDDEN_TYPE, QUERY_EMPTY, OPTIONS_EMPTY);
             assert_eq!(ErrorCode::WalletAccessFailed, res.unwrap_err());
@@ -1515,7 +1533,7 @@ mod high_cases {
             #[test]
             fn indy_close_wallet_search_works() {
                 NonSecretsUtils::populate_wallet_for_search();
-                let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET, None, None).unwrap();
+                let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET_CONFIG, WALLET_CREDENTIALS).unwrap();
 
                 let search_handle = NonSecretsUtils::open_wallet_search(wallet_handle, TYPE, QUERY_EMPTY, OPTIONS_EMPTY).unwrap();
 
@@ -1526,7 +1544,7 @@ mod high_cases {
             #[test]
             fn indy_close_wallet_search_works_for_invalid_handle() {
                 NonSecretsUtils::populate_wallet_for_search();
-                let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET, None, None).unwrap();
+                let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET_CONFIG, WALLET_CREDENTIALS).unwrap();
 
                 let search_handle = NonSecretsUtils::open_wallet_search(wallet_handle, TYPE, QUERY_EMPTY, OPTIONS_EMPTY).unwrap();
 
@@ -1541,7 +1559,7 @@ mod high_cases {
             #[test]
             fn close_wallet_search_works_for_twice() {
                 NonSecretsUtils::populate_wallet_for_search();
-                let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET, None, None).unwrap();
+                let wallet_handle = WalletUtils::open_wallet(SEARCH_COMMON_WALLET_CONFIG, WALLET_CREDENTIALS).unwrap();
 
                 let search_handle = NonSecretsUtils::open_wallet_search(wallet_handle, TYPE, QUERY_EMPTY, OPTIONS_EMPTY).unwrap();
 
@@ -1567,7 +1585,7 @@ mod medium_cases {
         pub fn transaction_works_during_opened_wallet_search() {
             TestUtils::cleanup_storage();
 
-            let wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+            let wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
             NonSecretsUtils::add_wallet_record(wallet_handle, TYPE, ID, VALUE, None).unwrap();
             NonSecretsUtils::add_wallet_record(wallet_handle, TYPE, ID_2, VALUE_2, None).unwrap();

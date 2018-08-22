@@ -48,118 +48,208 @@ extern "C" {
 
                                                   indy_error_t (*openFn)(const char* name,
                                                                            const char* config,
-                                                                           const char* runtime_config,
                                                                            const char* credentials,
                                                                            indy_handle_t* handle),
 
                                                   indy_error_t (*closeFn)(indy_handle_t handle),
 
                                                   indy_error_t (*deleteFn)(const char* name,
-                                                                             const char* config,
-                                                                             const char* credentials),
+                                                                           const char* config,
+                                                                           const char* credentials),
 
                                                   indy_error_t (*addRecordFn)(indy_handle_t handle,
-                                                                          const char* type_,
-                                                                          const char* id,
-                                                                          const indy_u8_t *  value,
-                                                                          indy_u32_t         value_len,
-                                                                          const char* tags_json),
+                                                                           const char* type_,
+                                                                           const char* id,
+                                                                           const indy_u8_t *  value,
+                                                                           indy_u32_t         value_len,
+                                                                           const char* tags_json),
 
                                                   indy_error_t (*updateRecordValueFn)(indy_handle_t handle,
-                                                                          const char* type_,
-                                                                          const char* id,
-                                                                          const indy_u8_t *  value,
-                                                                          indy_u32_t         value_len),
+                                                                           const char* type_,
+                                                                           const char* id,
+                                                                           const indy_u8_t *  value,
+                                                                           indy_u32_t         value_len),
 
                                                   indy_error_t (*updateRecordTagsFn)(indy_handle_t handle,
-                                                                          const char* type_,
-                                                                          const char* id,
-                                                                          const char* tags_json),
+                                                                           const char* type_,
+                                                                           const char* id,
+                                                                           const char* tags_json),
 
                                                   indy_error_t (*addRecordTagsFn)(indy_handle_t handle,
-                                                                          const char* type_,
-                                                                          const char* id,
-                                                                          const char* tags_json),
+                                                                           const char* type_,
+                                                                           const char* id,
+                                                                           const char* tags_json),
 
                                                   indy_error_t (*deleteRecordTagsFn)(indy_handle_t handle,
-                                                                          const char* type_,
-                                                                          const char* id,
-                                                                          const char* tags_names),
+                                                                           const char* type_,
+                                                                           const char* id,
+                                                                           const char* tags_names),
 
                                                   indy_error_t (*deleteRecordFn)(indy_handle_t handle,
-                                                                          const char* type_,
-                                                                          const char* id),
+                                                                           const char* type_,
+                                                                           const char* id),
 
                                                   indy_error_t (*getRecordFn)(indy_handle_t handle,
-                                                                          const char* type_,
-                                                                          const char* id,
-                                                                          const char* options_json,
-                                                                          int32_t* record_handle), // TODO: clarify mutable param
+                                                                           const char* type_,
+                                                                           const char* id,
+                                                                           const char* options_json,
+                                                                           int32_t* record_handle),
 
                                                   indy_error_t (*getRecordIdFn)(indy_handle_t handle,
-                                                                          indy_handle_t record_handle,
-                                                                          char* id),
+                                                                           indy_handle_t record_handle,
+                                                                           char* id),
 
                                                   indy_error_t (*getRecordValueFn)(indy_handle_t handle,
-                                                                          indy_handle_t record_handle,
-                                                                          indy_u8_t *  value,
-                                                                          indy_u32_t         value_len),
+                                                                           indy_handle_t record_handle,
+                                                                           indy_u8_t *  value,
+                                                                           indy_u32_t         value_len),
 
                                                   indy_error_t (*getRecordTagsFn)(indy_handle_t handle,
-                                                                          indy_handle_t record_handle,
-                                                                          char* tags_json),
+                                                                           indy_handle_t record_handle,
+                                                                           char* tags_json),
 
                                                   indy_error_t (*freeRecordFn)(indy_handle_t handle,
-                                                                          indy_handle_t record_handle),
+                                                                           indy_handle_t record_handle),
 
                                                   indy_error_t (*getStorageMetadataFn)(indy_handle_t handle,
-                                                                                     char* metadata,
-                                                                                     indy_handle_t metadata_handle),
+                                                                           char* metadata,
+                                                                           indy_handle_t metadata_handle),
 
                                                   indy_error_t (*setStorageMetadataFn)(indy_handle_t handle,
-                                                                                     const char* metadata),
+                                                                           const char* metadata),
 
                                                   indy_error_t (*freeStorageMetadataFn)(indy_handle_t handle,
-                                                                                     indy_handle_t metadata_handle),
+                                                                           indy_handle_t metadata_handle),
 
                                                   indy_error_t (*openSearchFn)(indy_handle_t handle,
-                                                                                     const char* type_,
-                                                                                     const char* query,
-                                                                                     const char* options,
-                                                                                     int32_t* search_handle),
+                                                                           const char* type_,
+                                                                           const char* query,
+                                                                           const char* options,
+                                                                           int32_t* search_handle),
 
                                                   indy_error_t (*openSearchAllFn)(indy_handle_t handle,
-                                                                                     indy_handle_t search_handle),
+                                                                           indy_handle_t search_handle),
 
                                                   indy_error_t (*getSearchTotalCountFn)(indy_handle_t handle,
-                                                                                        indy_handle_t search_handle,
-                                                                                     indy_u32_t*         total_count),
+                                                                           indy_handle_t search_handle,
+                                                                           indy_u32_t*         total_count),
 
                                                   indy_error_t (*fetchSearchNextRecordsFn)(indy_handle_t handle,
-                                                                                        indy_handle_t search_handle,
-                                                                                        indy_handle_t record_handle),
+                                                                           indy_handle_t search_handle,
+                                                                           indy_handle_t record_handle),
 
                                                   indy_error_t (*freeSearchFn)(indy_handle_t handle,
-                                                                                indy_handle_t search_handle),
+                                                                           indy_handle_t search_handle),
 
-                                                  void           (*fn)(indy_handle_t xcommand_handle, indy_error_t err)
+                                                  void         (*fn)(indy_handle_t xcommand_handle, indy_error_t err)
                                                   );
 
-    /// Creates a new secure wallet with the given unique name.
+    /// Create a new secure wallet.
     ///
     /// #Params
-    /// pool_name: Name of the pool that corresponds to this wallet.
-    /// name: Name of the wallet.
-    /// xtype(optional): Type of the wallet. Defaults to 'default'.
-    ///                  Custom types can be registered with indy_register_wallet_type call.
-    /// config(optional): Wallet configuration json. List of supported keys are defined by wallet type.
-    ///                    if NULL, then default config will be used.
+    /// config: Wallet configuration json.
+    /// {
+    ///   "id": string, Identifier of the wallet.
+    ///         Configured storage uses this identifier to lookup exact wallet data placement.
+    ///   "storage_type": optional<string>, Type of the wallet storage. Defaults to 'default'.
+    ///                  'Default' storage type allows to store wallet data in the local file.
+    ///                  Custom storage types can be registered with indy_register_wallet_storage call.
+    ///   "storage_config": optional<object>, Storage configuration json. Storage type defines set of supported keys.
+    ///                     Can be optional if storage supports default configuration.
+    //                      For 'default' storage type configuration is:
+    ///   {
+    ///     "path": optional<string>, Path to the directory with wallet files.
+    ///             Defaults to $HOME/.indy_client/wallets.
+    ///             Wallet will be stored in the file {path}/{id}/sqlite.db
+    ///   }
+    /// }
+    /// credentials: Wallet credentials json
+    /// {
+    ///   "key": string, Passphrase used to derive wallet master key
+    ///   "storage_credentials": optional<object> Credentials for wallet storage. Storage type defines set of supported keys.
+    ///                          Can be optional if storage supports default configuration.
+    ///                          For 'default' storage type should be empty.
+    ///   "key_derivation_method": optional<string> algorithm to use for master key derivation:
+    ///                          ARAGON2I_MOD (used by default)
+    ///                          ARAGON2I_INT - less secured but faster
+    /// }
+    ///
+    /// #Returns
+    /// err: Error code
+    ///
+    /// #Errors
+    /// Common*
+    /// Wallet*
+
+    extern indy_error_t indy_create_wallet(indy_handle_t  command_handle,
+                                           const char*    config,
+                                           const char*    credentials,
+                                           void           (*fn)(indy_handle_t xcommand_handle, indy_error_t err)
+                                          );
+
+    /// Open the wallet.
+    ///
+    /// Wallet must be previously created with indy_create_wallet method.
+    ///
+    /// #Params
+    /// config: Wallet configuration json.
+    ///   {
+    ///       "id": string, Identifier of the wallet.
+    ///             Configured storage uses this identifier to lookup exact wallet data placement.
+    ///       "storage_type": optional<string>, Type of the wallet storage. Defaults to 'default'.
+    ///                       'Default' storage type allows to store wallet data in the local file.
+    ///                       Custom storage types can be registered with indy_register_wallet_storage call.
+    ///       "storage_config": optional<object>, Storage configuration json. Storage type defines set of supported keys.
+    ///                         Can be optional if storage supports default configuration.
+    ///                         For 'default' storage type configuration is:
+    ///           {
+    ///              "path": optional<string>, Path to the directory with wallet files.
+    ///                      Defaults to $HOME/.indy_client/wallets.
+    ///                      Wallet will be stored in the file {path}/{id}/sqlite.db
+    ///           }
+    ///
+    ///   }
     /// credentials: Wallet credentials json
     ///   {
-    ///       "key": string,
-    ///       "rekey": Optional<string>,
-    ///       "storage": Optional<object>  List of supported keys are defined by wallet type.
+    ///       "key": string, Passphrase used to derive current wallet master key
+    ///       "rekey": optional<string>, If present than wallet master key will be rotated to a new one
+    ///                                  derived from this passphrase.
+    ///       "storage_credentials": optional<object> Credentials for wallet storage. Storage type defines set of supported keys.
+    ///                              Can be optional if storage supports default configuration.
+    ///                              For 'default' storage type should be empty.
+    ///       "key_derivation_method": optional<string> algorithm to use for master key derivation:
+    ///                             ARAGON2I_MOD (used by default)
+    ///                             ARAGON2I_INT - less secured but faster
+    ///       "rekey_derivation_method": optional<string> algorithm to use for master rekey derivation:
+    ///                             ARAGON2I_MOD (used by default)
+    ///                             ARAGON2I_INT - less secured but faster
+    ///   }
     ///
+    /// #Returns
+    /// err: Error code
+    /// handle: Handle to opened wallet to use in methods that require wallet access.
+    ///
+    /// #Errors
+    /// Common*
+    /// Wallet*
+
+    extern indy_error_t indy_open_wallet(indy_handle_t  command_handle,
+                                         const char*    config,
+                                         const char*    credentials,
+                                         void           (*fn)(indy_handle_t xcommand_handle, indy_error_t err, indy_handle_t handle)
+                                        );
+
+    /// Exports opened wallet
+    ///
+    /// #Params:
+    /// wallet_handle: wallet handle returned by indy_open_wallet
+    /// export_config: JSON containing settings for input operation.
+    ///   {
+    ///     "path": <string>, Path of the file that contains exported wallet content
+    ///     "key": <string>, Passphrase used to derive export key
+    ///     "key_derivation_method": optional<string> algorithm to use for export key derivation:
+    ///                              ARAGON2I_MOD (used by default)
+    ///                              ARAGON2I_INT - less secured but faster
     ///   }
     ///
     /// #Returns
@@ -169,57 +259,68 @@ extern "C" {
     /// Common*
     /// Wallet*
 
-    extern indy_error_t indy_create_wallet(indy_handle_t  command_handle,
-                                           const char*    pool_name,
-                                           const char*    name,
-                                           const char*    xtype,
-                                           const char*    config,
-                                           const char*    credentials,
+    extern indy_error_t indy_export_wallet(indy_handle_t  command_handle,
+                                           indy_handle_t  wallet_handle,
+                                           const char*    export_config_json,
                                            void           (*fn)(indy_handle_t xcommand_handle, indy_error_t err)
-                                          );
-    /// Opens the wallet with specific name.
-    ///
-    /// Wallet with corresponded name must be previously created with indy_create_wallet method.
-    /// It is impossible to open wallet with the same name more than once.
+                                           );
+
+
+    /// Creates a new secure wallet and then imports its content
+    /// according to fields provided in import_config
+    /// This can be seen as an indy_create_wallet call with additional content import
     ///
     /// #Params
-    /// name: Name of the wallet.
-    /// runtime_config (optional): Runtime wallet configuration json. if NULL, then default runtime_config will be used. Example:
+    /// config: Wallet configuration json.
     /// {
-    ///     "freshness_time": string (optional), Amount of minutes to consider wallet value as fresh. Defaults to 24*60.
-    ///     ... List of additional supported keys are defined by wallet type.
+    ///   "id": string, Identifier of the wallet.
+    ///         Configured storage uses this identifier to lookup exact wallet data placement.
+    ///   "storage_type": optional<string>, Type of the wallet storage. Defaults to 'default'.
+    ///                  'Default' storage type allows to store wallet data in the local file.
+    ///                  Custom storage types can be registered with indy_register_wallet_storage call.
+    ///   "storage_config": optional<object>, Storage configuration json. Storage type defines set of supported keys.
+    ///                     Can be optional if storage supports default configuration.
+    ///                     For 'default' storage type configuration is:
+    ///   {
+    ///     "path": optional<string>, Path to the directory with wallet files.
+    ///             Defaults to $HOME/.indy_client/wallets.
+    ///             Wallet will be stored in the file {path}/{id}/sqlite.db
+    ///   }
     /// }
     /// credentials: Wallet credentials json
-    ///   {
-    ///       "key": string,
-    ///       "rekey": Optional<string>,
-    ///       "storage": Optional<object>  List of supported keys are defined by wallet type.
-    ///
-    ///   }
+    /// {
+    ///   "key": string, Passphrase used to derive wallet master key
+    ///   "storage_credentials": optional<object> Credentials for wallet storage. Storage type defines set of supported keys.
+    ///                          Can be optional if storage supports default configuration.
+    ///                          For 'default' storage type should be empty.
+    ///   "key_derivation_method": optional<string> algorithm to use for master key derivation:
+    ///                            ARAGON2I_MOD (used by default)
+    ///                            ARAGON2I_INT - less secured but faster
+    /// }
+    /// import_config: Import settings json.
+    /// {
+    ///   "path": <string>, path of the file that contains exported wallet content
+    ///   "key": <string>, passphrase used to derive export key
+    /// }
     ///
     /// #Returns
-    /// Handle to opened wallet to use in methods that require wallet access.
+    /// Error code
     ///
     /// #Errors
     /// Common*
     /// Wallet*
 
-    extern indy_error_t indy_open_wallet(indy_handle_t  command_handle,
-                                         const char*    name,
-                                         const char*    runtime_config,
-                                         const char*    credentials,
-                                         void           (*fn)(indy_handle_t xcommand_handle, indy_error_t err, indy_handle_t handle)
-                                        );
-
-    /// Lists created wallets as JSON array with each wallet metadata: name, type, name of associated pool
-    extern indy_error_t indy_list_wallets(indy_handle_t command_handle,
-                                          void          (*fn)(indy_handle_t xcommand_handle, indy_error_t err, const char *const wallets)
-                                          );
+    extern indy_error_t indy_import_wallet(indy_handle_t  command_handle,
+                                           const char*    config,
+                                           const char*    credentials,
+                                           const char*    import_config_json,
+                                           void           (*fn)(indy_handle_t xcommand_handle, indy_error_t err)
+                                           );
 
     /// Closes opened wallet and frees allocated resources.
     ///
     /// #Params
-    /// handle: wallet handle returned by indy_open_wallet.
+    /// wallet_handle: wallet handle returned by indy_open_wallet.
     ///
     /// #Returns
     /// Error code
@@ -229,21 +330,39 @@ extern "C" {
     /// Wallet*
 
     extern indy_error_t indy_close_wallet(indy_handle_t  command_handle,
-                                          indy_handle_t  handle,
+                                          indy_handle_t  wallet_handle,
                                           void           (*fn)(indy_handle_t xcommand_handle, indy_error_t err)
                                          );
 
     /// Deletes created wallet.
     ///
     /// #Params
-    /// name: Name of the wallet to delete.
-    /// credentials: Wallet credentials json
+    /// config: Wallet configuration json.
+    /// {
+    ///   "id": string, Identifier of the wallet.
+    ///         Configured storage uses this identifier to lookup exact wallet data placement.
+    ///   "storage_type": optional<string>, Type of the wallet storage. Defaults to 'default'.
+    ///                  'Default' storage type allows to store wallet data in the local file.
+    ///                  Custom storage types can be registered with indy_register_wallet_storage call.
+    ///   "storage_config": optional<object>, Storage configuration json. Storage type defines set of supported keys.
+    ///                     Can be optional if storage supports default configuration.
+    ///                     For 'default' storage type configuration is:
     ///   {
-    ///       "key": string,
-    ///       "rekey": Optional<string>,
-    ///       "storage": Optional<object>  List of supported keys are defined by wallet type.
-    ///
+    ///     "path": optional<string>, Path to the directory with wallet files.
+    ///             Defaults to $HOME/.indy_client/wallets.
+    ///             Wallet will be stored in the file {path}/{id}/sqlite.db
     ///   }
+    /// }
+    /// credentials: Wallet credentials json
+    /// {
+    ///   "key": string, Passphrase used to derive wallet master key
+    ///   "storage_credentials": optional<object> Credentials for wallet storage. Storage type defines set of supported keys.
+    ///                          Can be optional if storage supports default configuration.
+    ///                          For 'default' storage type should be empty.
+    ///   "key_derivation_method": optional<string> algorithm to use for master key derivation:
+    ///                            ARAGON2I_MOD (used by default)
+    ///                            ARAGON2I_INT - less secured but faster
+    /// }
     ///
     /// #Returns
     /// Error code
@@ -253,7 +372,7 @@ extern "C" {
     /// Wallet*
 
     extern indy_error_t indy_delete_wallet(indy_handle_t  command_handle,
-                                           const char*    name,
+                                           const char*    config,
                                            const char*    credentials,
                                            void           (*fn)(indy_handle_t xcommand_handle, indy_error_t err)
                                           );

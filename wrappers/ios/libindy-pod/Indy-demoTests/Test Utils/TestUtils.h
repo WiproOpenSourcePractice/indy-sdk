@@ -41,6 +41,8 @@
 
 + (NSString *)wallet;
 
++ (NSString *)walletConfig;
+
 + (NSData *)message;
 
 + (NSData *)encryptedMessage;
@@ -100,5 +102,7 @@
 + (NSString *)xyzSchemaAttrs;
 
 + (NSString *)tag;
+
++ (NSNumber *)protocolVersion;
 
 @end

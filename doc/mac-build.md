@@ -11,6 +11,7 @@
    brew install cmake
    brew install openssl
    brew install zeromq
+   brew install zmq
    ```
    
 
@@ -29,6 +30,12 @@
    ```
    git clone https://github.com/hyperledger/indy-sdk.git
    cd ./indy-sdk/libindy
+   cargo build
+   ```
+6. To compile the CLI, libnullpay, or other items that depend on libindy:
+   ```
+   export LIBRARY_PATH=/path/to/sdk/libindy/target/<config>
+   cd ../cli
    cargo build
    ```
 

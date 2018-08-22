@@ -10,7 +10,10 @@ use std::rc::Rc;
 use std::collections::HashMap;
 use utils::sequence::SequenceUtils;
 use std::cell::RefCell;
-use self::indy_crypto::utils::json::{JsonEncodable, JsonDecodable};
+
+use std::result;
+
+type Result<T> = result::Result<T, IndyError>;
 
 pub enum NonSecretsCommand {
     AddRecord(i32, // handle
@@ -18,47 +21,47 @@ pub enum NonSecretsCommand {
               String, // id
               String, // value
               Option<String>, //tags json
-              Box<Fn(Result<(), IndyError>) + Send>),
+              Box<Fn(Result<()>) + Send>),
     UpdateRecordValue(i32, // handle
                       String, // type
                       String, // id
                       String, // value
-                      Box<Fn(Result<(), IndyError>) + Send>),
+                      Box<Fn(Result<()>) + Send>),
     UpdateRecordTags(i32, // handle
                      String, // type
                      String, // id
                      String, //tags json
-                     Box<Fn(Result<(), IndyError>) + Send>),
+                     Box<Fn(Result<()>) + Send>),
     AddRecordTags(i32, // handle
                   String, // type
                   String, // id
                   String, //tags json
-                  Box<Fn(Result<(), IndyError>) + Send>),
+                  Box<Fn(Result<()>) + Send>),
     DeleteRecordTags(i32, // handle
                      String, // type
                      String, // id
                      String, //tag names json
-                     Box<Fn(Result<(), IndyError>) + Send>),
+                     Box<Fn(Result<()>) + Send>),
     DeleteRecord(i32, // handle
                  String, // type
                  String, // id
-                 Box<Fn(Result<(), IndyError>) + Send>),
+                 Box<Fn(Result<()>) + Send>),
     GetRecord(i32, // handle
               String, // type
               String, // id
               String, // options json
-              Box<Fn(Result<String, IndyError>) + Send>),
+              Box<Fn(Result<String>) + Send>),
     OpenSearch(i32, // handle
                String, // type
                String, // query json
                String, // options json
-               Box<Fn(Result<i32, IndyError>) + Send>),
+               Box<Fn(Result<i32>) + Send>),
     FetchSearchNextRecords(i32, // wallet handle
                            i32, // wallet search handle
                            usize, // count
-                           Box<Fn(Result<String, IndyError>) + Send>),
+                           Box<Fn(Result<String>) + Send>),
     CloseSearch(i32, // wallet search handle
-                Box<Fn(Result<(), IndyError>) + Send>)
+                Box<Fn(Result<()>) + Send>)
 }
 
 pub struct NonSecretsCommandExecutor {
@@ -124,12 +127,14 @@ impl NonSecretsCommandExecutor {
                   type_: &str,
                   id: &str,
                   value: &str,
-                  tags_json: Option<&str>) -> Result<(), IndyError> {
+                  tags_json: Option<&str>) -> Result<()> {
         trace!("add_record >>> wallet_handle: {:?}, type_: {:?}, id: {:?}, value: {:?}, tags_json: {:?}", wallet_handle, type_, id, value, tags_json);
 
         self._check_type(type_)?;
 
-        let res = self.wallet_service.add_record(wallet_handle, type_, id, value, tags_json.unwrap_or("{}"))?; //TODO: question
+        let tags = serde_json::from_str(tags_json.unwrap_or("{}"))
+            .map_err(|err| CommonError::InvalidStructure(format!("Cannot deserialize tags: {:?}", err)))?;
+        let res = self.wallet_service.add_record(wallet_handle, type_, id, value, &tags)?;
 
         trace!("add_record <<< res: {:?}", res);
 
@@ -140,7 +145,7 @@ impl NonSecretsCommandExecutor {
                            wallet_handle: i32,
                            type_: &str,
                            id: &str,
-                           value: &str) -> Result<(), IndyError> {
+                           value: &str) -> Result<()> {
         trace!("update_record_value >>> wallet_handle: {:?}, type_: {:?}, id: {:?}, value: {:?}", wallet_handle, type_, id, value);
 
         self._check_type(type_)?;
@@ -156,12 +161,14 @@ impl NonSecretsCommandExecutor {
                           wallet_handle: i32,
                           type_: &str,
                           id: &str,
-                          tags_json: &str) -> Result<(), IndyError> {
+                          tags_json: &str) -> Result<()> {
         trace!("update_record_tags >>> wallet_handle: {:?}, type_: {:?}, id: {:?}, tags_json: {:?}", wallet_handle, type_, id, tags_json);
 
         self._check_type(type_)?;
 
-        let res = self.wallet_service.update_record_tags(wallet_handle, type_, id, tags_json)?;
+        let tags = serde_json::from_str(tags_json)
+            .map_err(|err| CommonError::InvalidStructure(format!("Cannot deserialize tags: {:?}", err)))?;
+        let res = self.wallet_service.update_record_tags(wallet_handle, type_, id, &tags)?;
 
         trace!("update_record_tags <<< res: {:?}", res);
 
@@ -172,12 +179,14 @@ impl NonSecretsCommandExecutor {
                        wallet_handle: i32,
                        type_: &str,
                        id: &str,
-                       tags_json: &str) -> Result<(), IndyError> {
+                       tags_json: &str) -> Result<()> {
         trace!("add_record_tags >>> wallet_handle: {:?}, type_: {:?}, id: {:?}, tags_json: {:?}", wallet_handle, type_, id, tags_json);
 
         self._check_type(type_)?;
 
-        let res = self.wallet_service.add_record_tags(wallet_handle, type_, id, tags_json)?;
+        let tags = serde_json::from_str(tags_json)
+            .map_err(|err| CommonError::InvalidStructure(format!("Cannot deserialize tags: {:?}", err)))?;
+        let res = self.wallet_service.add_record_tags(wallet_handle, type_, id, &tags)?;
 
         trace!("add_record_tags <<< res: {:?}", res);
 
@@ -188,12 +197,15 @@ impl NonSecretsCommandExecutor {
                           wallet_handle: i32,
                           type_: &str,
                           id: &str,
-                          tag_names_json: &str) -> Result<(), IndyError> {
+                          tag_names_json: &str) -> Result<()> {
         trace!("delete_record_tags >>> wallet_handle: {:?}, type_: {:?}, id: {:?}, tag_names_json: {:?}", wallet_handle, type_, id, tag_names_json);
 
         self._check_type(type_)?;
 
-        let res = self.wallet_service.delete_record_tags(wallet_handle, type_, id, tag_names_json)?;
+        let tag_names: Vec<&str> = serde_json::from_str(tag_names_json)
+            .map_err(|err| CommonError::InvalidStructure(format!("Cannot deserialize tag names: {:?}", err)))?;
+
+        let res = self.wallet_service.delete_record_tags(wallet_handle, type_, id, &tag_names)?;
 
         trace!("delete_record_tags <<< res: {:?}", res);
 
@@ -203,7 +215,7 @@ impl NonSecretsCommandExecutor {
     fn delete_record(&self,
                      wallet_handle: i32,
                      type_: &str,
-                     id: &str) -> Result<(), IndyError> {
+                     id: &str) -> Result<()> {
         trace!("delete_record >>> wallet_handle: {:?}, type_: {:?}, id: {:?}", wallet_handle, type_, id);
 
         self._check_type(type_)?;
@@ -219,17 +231,17 @@ impl NonSecretsCommandExecutor {
                   wallet_handle: i32,
                   type_: &str,
                   id: &str,
-                  options_json: &str) -> Result<String, IndyError> {
+                  options_json: &str) -> Result<String> {
         trace!("get_record >>> wallet_handle: {:?}, type_: {:?}, id: {:?}, options_json: {:?}", wallet_handle, type_, id, options_json);
 
         self._check_type(type_)?;
 
-        RecordOptions::from_json(options_json)
+        serde_json::from_str::<RecordOptions>(options_json)
             .map_err(|err| CommonError::InvalidStructure(format!("Cannot deserialize Options Json: {:?}", err)))?;
 
         let record = self.wallet_service.get_record(wallet_handle, type_, id, &options_json)?;
 
-        let res = record.to_json()
+        let res = serde_json::to_string(&record)
             .map_err(|err| CommonError::InvalidState(format!("Cannot serialize WalletRecord: {:?}", err)))?;
 
         trace!("get_record <<< res: {:?}", res);
@@ -241,12 +253,12 @@ impl NonSecretsCommandExecutor {
                    wallet_handle: i32,
                    type_: &str,
                    query_json: &str,
-                   options_json: &str) -> Result<i32, IndyError> {
+                   options_json: &str) -> Result<i32> {
         trace!("open_search >>> wallet_handle: {:?}, type_: {:?}, query_json: {:?}, options_json: {:?}", wallet_handle, type_, query_json, options_json);
 
         self._check_type(type_)?;
 
-        SearchOptions::from_json(options_json)
+        serde_json::from_str::<SearchOptions>(options_json)
             .map_err(|err| CommonError::InvalidStructure(format!("Cannot deserialize Options Json: {:?}", err)))?;
 
         let search = self.wallet_service.search_records(wallet_handle, type_, query_json, &options_json)?;
@@ -263,7 +275,7 @@ impl NonSecretsCommandExecutor {
     fn fetch_search_next_records(&self,
                                  wallet_handle: i32,
                                  wallet_search_handle: i32,
-                                 count: usize) -> Result<String, IndyError> {
+                                 count: usize) -> Result<String> {
         trace!("fetch_search_next_records >>> wallet_handle: {:?}, wallet_search_handle: {:?}, count: {:?}", wallet_handle, wallet_search_handle, count);
 
         let mut searches = self.searches.borrow_mut();
@@ -283,7 +295,7 @@ impl NonSecretsCommandExecutor {
             records: if records.is_empty() { None } else { Some(records) }
         };
 
-        let res = search_result.to_json()
+        let res = serde_json::to_string(&search_result)
             .map_err(|err| CommonError::InvalidState(format!("Cannot serialize SearchRecords: {:?}", err)))?;
 
         trace!("fetch_search_next_records <<< res: {:?}", res);
@@ -292,7 +304,7 @@ impl NonSecretsCommandExecutor {
     }
 
     fn close_search(&self,
-                    wallet_search_handle: i32) -> Result<(), IndyError> {
+                    wallet_search_handle: i32) -> Result<()> {
         trace!("close_search >>> wallet_search_handle: {:?}", wallet_search_handle);
 
         let res = match self.searches.borrow_mut().remove(&wallet_search_handle) {
@@ -305,9 +317,9 @@ impl NonSecretsCommandExecutor {
         Ok(res)
     }
 
-    fn _check_type(&self, type_: &str) -> Result<(), IndyError> {
+    fn _check_type(&self, type_: &str) -> Result<()> {
         if type_.starts_with(WalletService::PREFIX) {
-            return Err(IndyError::WalletError(WalletError::AccessFailed(format!("Record Type is available: {}", type_)))); //TODO: change error
+            return Err(IndyError::WalletError(WalletError::AccessFailed(format!("Record of type \"{}\" is not available", type_))));
         }
         Ok(())
     }
@@ -319,5 +331,3 @@ pub struct SearchRecords {
     pub total_count: Option<usize>,
     pub records: Option<Vec<WalletRecord>>
 }
-
-impl JsonEncodable for SearchRecords {}

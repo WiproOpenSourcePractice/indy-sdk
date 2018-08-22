@@ -1,65 +1,68 @@
 extern crate indy_crypto;
 extern crate serde_json;
 
-use self::indy_crypto::utils::json::JsonDecodable;
+use std::collections::HashMap;
+
 use errors::common::CommonError;
 use errors::wallet::WalletError;
 use errors::indy::IndyError;
 use domain::crypto::key::{KeyInfo, Key};
 use domain::crypto::combo_box::ComboBox;
+use utils::crypto::base64;
 use services::wallet::{WalletService, RecordOptions};
 use services::crypto::CryptoService;
 
 use std::error::Error;
 use std::rc::Rc;
 use std::str;
+use std::result;
 
-use base64;
+type Result<T> = result::Result<T, IndyError>;
 
 pub enum CryptoCommand {
     CreateKey(
         i32, // wallet handle
         String, // key info json
-        Box<Fn(Result<String/*verkey*/, IndyError>) + Send>),
+        Box<Fn(Result<String/*verkey*/>) + Send>),
     SetKeyMetadata(
         i32, // wallet handle
         String, // verkey
         String, // metadata
-        Box<Fn(Result<(), IndyError>) + Send>),
+        Box<Fn(Result<()>) + Send>),
     GetKeyMetadata(
         i32, // wallet handle
         String, // verkey
-        Box<Fn(Result<String, IndyError>) + Send>),
+        Box<Fn(Result<String>) + Send>),
     CryptoSign(
         i32, // wallet handle
         String, // my vk
         Vec<u8>, // msg
-        Box<Fn(Result<Vec<u8>, IndyError>) + Send>),
+        Box<Fn(Result<Vec<u8>>) + Send>),
     CryptoVerify(
         String, // their vk
         Vec<u8>, // msg
         Vec<u8>, // signature
-        Box<Fn(Result<bool, IndyError>) + Send>),
+        Box<Fn(Result<bool>) + Send>),
     AuthenticatedEncrypt(
         i32, // wallet handle
         String, // my vk
         String, // their vk
         Vec<u8>, // msg
-        Box<Fn(Result<Vec<u8>, IndyError>) + Send>),
+        Box<Fn(Result<Vec<u8>>) + Send>),
     AuthenticatedDecrypt(
         i32, // wallet handle
         String, // my vk
         Vec<u8>, // encrypted msg
-        Box<Fn(Result<(String, Vec<u8>), IndyError>) + Send>),
+        Box<Fn(Result<(String, Vec<u8>)>) + Send>),
     AnonymousEncrypt(
         String, // their vk
         Vec<u8>, // msg
-        Box<Fn(Result<Vec<u8>, IndyError>) + Send>),
+        Box<Fn(Result<Vec<u8>>) + Send>),
     AnonymousDecrypt(
         i32, // wallet handle
         String, // my vk
         Vec<u8>, // msg
-        Box<Fn(Result<Vec<u8>, IndyError>) + Send>)
+        Box<Fn(Result<Vec<u8>>) + Send>)
 }
 
 pub struct CryptoCommandExecutor {
@@ -81,15 +84,15 @@ impl CryptoCommandExecutor {
         match command {
             CryptoCommand::CreateKey(wallet_handle, key_info_json, cb) => {
                 info!("CreateKey command received");
-                cb(self.create_key(wallet_handle, key_info_json));
+                cb(self.create_key(wallet_handle, &key_info_json));
             }
             CryptoCommand::SetKeyMetadata(wallet_handle, verkey, metadata, cb) => {
                 info!("SetKeyMetadata command received");
-                cb(self.set_key_metadata(wallet_handle, verkey, metadata));
+                cb(self.set_key_metadata(wallet_handle, &verkey, &metadata));
             }
             CryptoCommand::GetKeyMetadata(wallet_handle, verkey, cb) => {
                 info!("GetKeyMetadata command received");
-                cb(self.get_key_metadata(wallet_handle, verkey));
+                cb(self.get_key_metadata(wallet_handle, &verkey));
             }
             CryptoCommand::CryptoSign(wallet_handle, my_vk, msg, cb) => {
                 info!("CryptoSign command received");
@@ -97,50 +100,48 @@ impl CryptoCommandExecutor {
             }
             CryptoCommand::CryptoVerify(their_vk, msg, signature, cb) => {
                 info!("CryptoVerify command received");
-                cb(self.crypto_verify(their_vk, msg, signature));
+                cb(self.crypto_verify(&their_vk, &msg, &signature));
             }
             CryptoCommand::AuthenticatedEncrypt(wallet_handle, my_vk, their_vk, msg, cb) => {
                 info!("AuthenticatedEncrypt command received");
-                cb(self.authenticated_encrypt(wallet_handle, my_vk, their_vk, msg));
+                cb(self.authenticated_encrypt(wallet_handle, &my_vk, &their_vk, &msg));
             }
             CryptoCommand::AuthenticatedDecrypt(wallet_handle, my_vk, encrypted_msg, cb) => {
                 info!("AuthenticatedDecrypt command received");
-                cb(self.authenticated_decrypt(wallet_handle, my_vk, encrypted_msg));
+                cb(self.authenticated_decrypt(wallet_handle, &my_vk, &encrypted_msg));
             }
             CryptoCommand::AnonymousEncrypt(their_vk, msg, cb) => {
                 info!("AnonymousEncrypt command received");
-                cb(self.anonymous_encrypt(their_vk, msg));
+                cb(self.anonymous_encrypt(&their_vk, &msg));
             }
             CryptoCommand::AnonymousDecrypt(wallet_handle, my_vk, encrypted_msg, cb) => {
                 info!("AnonymousDecrypt command received");
-                cb(self.anonymous_decrypt(wallet_handle, my_vk, encrypted_msg));
+                cb(self.anonymous_decrypt(wallet_handle, &my_vk, &encrypted_msg));
             }
         };
     }
 
-    fn create_key(&self, wallet_handle: i32, key_info_json: String) -> Result<String, IndyError> {
-        debug!("create_key >>> wallet_handle: {:?}, key_info_json: {:?}", wallet_handle, key_info_json);
+    fn create_key(&self, wallet_handle: i32, key_info_json: &str) -> Result<String> {
+        debug!("create_key >>> wallet_handle: {:?}, key_info_json: {:?}", wallet_handle, secret!(key_info_json));
 
-        let key_info = KeyInfo::from_json(&key_info_json)
+        let key_info: KeyInfo =  serde_json::from_str(key_info_json)
             .map_err(map_err_trace!())
             .map_err(|err|
                 CommonError::InvalidStructure(
                     format!("Invalid KeyInfo json: {}", err.description())))?;
 
         let key = self.crypto_service.create_key(&key_info)?;
-        self.wallet_service.add_indy_object(wallet_handle, &key.verkey, &key, "{}")?;
+        self.wallet_service.add_indy_object(wallet_handle, &key.verkey, &key, &HashMap::new())?;
 
         let res = key.verkey;
-
         debug!("create_key <<< res: {:?}", res);
-
         Ok(res)
     }
 
     fn crypto_sign(&self,
                    wallet_handle: i32,
                    my_vk: &str,
-                   msg: &[u8]) -> Result<Vec<u8>, IndyError> {
+                   msg: &[u8]) -> Result<Vec<u8>> {
         debug!("crypto_sign >>> wallet_handle: {:?}, sender_vk: {:?}, msg: {:?}", wallet_handle, my_vk, msg);
 
         self.crypto_service.validate_key(my_vk)?;
@@ -155,14 +156,14 @@ impl CryptoCommandExecutor {
     }
 
     fn crypto_verify(&self,
-                     their_vk: String,
-                     msg: Vec<u8>,
-                     signature: Vec<u8>) -> Result<bool, IndyError> {
+                     their_vk: &str,
+                     msg: &[u8],
+                     signature: &[u8]) -> Result<bool> {
         debug!("crypto_verify >>> their_vk: {:?}, msg: {:?}, signature: {:?}", their_vk, msg, signature);
 
-        self.crypto_service.validate_key(&their_vk)?;
+        self.crypto_service.validate_key(their_vk)?;
 
-        let res = self.crypto_service.verify(&their_vk, &msg, &signature)?;
+        let res = self.crypto_service.verify(their_vk, msg, signature)?;
 
         debug!("crypto_verify <<< res: {:?}", res);
 
@@ -171,17 +172,17 @@ impl CryptoCommandExecutor {
 
     fn authenticated_encrypt(&self,
                              wallet_handle: i32,
-                             my_vk: String,
-                             their_vk: String,
-                             msg: Vec<u8>) -> Result<Vec<u8>, IndyError> {
+                             my_vk: &str,
+                             their_vk: &str,
+                             msg: &[u8]) -> Result<Vec<u8>> {
         debug!("authenticated_encrypt >>> wallet_handle: {:?}, my_vk: {:?}, their_vk: {:?}, msg: {:?}", wallet_handle, my_vk, their_vk, msg);
 
-        self.crypto_service.validate_key(&my_vk)?;
-        self.crypto_service.validate_key(&their_vk)?;
+        self.crypto_service.validate_key(my_vk)?;
+        self.crypto_service.validate_key(their_vk)?;
 
-        let my_key: Key = self.wallet_service.get_indy_object(wallet_handle, &my_vk, &RecordOptions::id_value(), &mut String::new())?;
+        let my_key: Key = self.wallet_service.get_indy_object(wallet_handle, my_vk, &RecordOptions::id_value(), &mut String::new())?;
 
-        let msg = self.crypto_service.create_combo_box(&my_key, &their_vk, msg.as_slice())?;
+        let msg = self.crypto_service.create_combo_box(&my_key, &their_vk, msg)?;
 
         let msg = msg.to_msg_pack()
             .map_err(|e| CommonError::InvalidState(format!("Can't serialize ComboBox: {:?}", e)))?;
@@ -195,13 +196,13 @@ impl CryptoCommandExecutor {
 
     fn authenticated_decrypt(&self,
                              wallet_handle: i32,
-                             my_vk: String,
-                             msg: Vec<u8>) -> Result<(String, Vec<u8>), IndyError> {
+                             my_vk: &str,
+                             msg: &[u8]) -> Result<(String, Vec<u8>)> {
         debug!("authenticated_decrypt >>> wallet_handle: {:?}, my_vk: {:?}, msg: {:?}", wallet_handle, my_vk, msg);
 
-        self.crypto_service.validate_key(&my_vk)?;
+        self.crypto_service.validate_key(my_vk)?;
 
-        let my_key: Key = self.wallet_service.get_indy_object(wallet_handle, &my_vk, &RecordOptions::id_value(), &mut String::new())?;
+        let my_key: Key = self.wallet_service.get_indy_object(wallet_handle, my_vk, &RecordOptions::id_value(), &mut String::new())?;
 
         let decrypted_msg = self.crypto_service.decrypt_sealed(&my_key, &msg)?;
 
@@ -224,13 +225,13 @@ impl CryptoCommandExecutor {
     }
 
     fn anonymous_encrypt(&self,
-                         their_vk: String,
-                         msg: Vec<u8>) -> Result<Vec<u8>, IndyError> {
+                         their_vk: &str,
+                         msg: &[u8]) -> Result<Vec<u8>> {
         debug!("anonymous_encrypt >>> their_vk: {:?}, msg: {:?}", their_vk, msg);
 
-        self.crypto_service.validate_key(&their_vk)?;
+        self.crypto_service.validate_key(their_vk)?;
 
-        let res = self.crypto_service.encrypt_sealed(&their_vk, &msg)?;
+        let res = self.crypto_service.encrypt_sealed(their_vk, &msg)?;
 
         debug!("anonymous_encrypt <<< res: {:?}", res);
 
@@ -239,8 +240,8 @@ impl CryptoCommandExecutor {
 
     fn anonymous_decrypt(&self,
                          wallet_handle: i32,
-                         my_vk: String,
-                         encrypted_msg: Vec<u8>) -> Result<Vec<u8>, IndyError> {
+                         my_vk: &str,
+                         encrypted_msg: &[u8]) -> Result<Vec<u8>> {
         debug!("anonymous_decrypt >>> wallet_handle: {:?}, my_vk: {:?}, encrypted_msg: {:?}", wallet_handle, my_vk, encrypted_msg);
 
         self.crypto_service.validate_key(&my_vk)?;
@@ -254,16 +255,17 @@ impl CryptoCommandExecutor {
         Ok(res)
     }
 
-    fn set_key_metadata(&self, wallet_handle: i32, verkey: String, metadata: String) -> Result<(), IndyError> {
+    fn set_key_metadata(&self, wallet_handle: i32, verkey: &str, metadata: &str) -> Result<()> {
         debug!("set_key_metadata >>> wallet_handle: {:?}, verkey: {:?}, metadata: {:?}", wallet_handle, verkey, metadata);
 
-        self.crypto_service.validate_key(&verkey)?;
+        self.crypto_service.validate_key(verkey)?;
 
-        self.wallet_service.get_indy_record::<Key>(wallet_handle, &verkey, &RecordOptions::id())?;
+        self.wallet_service.get_indy_record::<Key>(wallet_handle, verkey, &RecordOptions::id())?;
 
-        let tags_json = json!({"metadata": metadata}).to_string();
+        let mut tags = HashMap::new();
+        tags.insert("metadata".to_string(), metadata.to_string());
 
-        let res = self.wallet_service.add_indy_record_tags::<Key>(wallet_handle, &verkey, &tags_json)?;
+        let res = self.wallet_service.add_indy_record_tags::<Key>(wallet_handle, verkey, &tags)?;
 
         debug!("set_key_metadata <<< res: {:?}", res);
 
@@ -272,12 +274,12 @@ impl CryptoCommandExecutor {
 
     fn get_key_metadata(&self,
                         wallet_handle: i32,
-                        verkey: String) -> Result<String, IndyError> {
+                        verkey: &str) -> Result<String> {
         debug!("get_key_metadata >>> wallet_handle: {:?}, verkey: {:?}", wallet_handle, verkey);
 
-        self.crypto_service.validate_key(&verkey)?;
+        self.crypto_service.validate_key(verkey)?;
 
-        let res = self.wallet_service.get_indy_record::<Key>(wallet_handle, &verkey, &RecordOptions::full())?
+        let res = self.wallet_service.get_indy_record::<Key>(wallet_handle, verkey, &RecordOptions::full())?
             .get_tags()
             .and_then(|tags| tags.get("metadata").cloned())
             .ok_or(WalletError::ItemNotFound)?;

@@ -5,10 +5,10 @@ var initTestPool = require('./helpers/initTestPool')
 
 test('did', async function (t) {
   var pool = await initTestPool()
-  var wName = 'wallet-' + cuid()
+  var walletConfig = {'id': 'wallet-' + cuid()}
   var walletCredentials = {'key': 'key'}
-  await indy.createWallet(pool.name, wName, 'default', null, walletCredentials)
-  var wh = await indy.openWallet(wName, null, walletCredentials)
+  await indy.createWallet(walletConfig, walletCredentials)
+  var wh = await indy.openWallet(walletConfig, walletCredentials)
 
   // List, create, and get
   t.deepEqual(await indy.listMyDidsWithMeta(wh), [])
@@ -33,7 +33,7 @@ test('did', async function (t) {
   verkey = verkey2
 
   // Store
-  await indy.storeTheirDid(wh, {did: 'VsKV7grR1BUE29mG2Fm2kX'})
+  await indy.storeTheirDid(wh, {did: 'VsKV7grR1BUE29mG2Fm2kX', verkey: 'GjZWsBLgZCR18aL468JAT7w9CZRiBnpxUPPgyQxh4voa'})
 
   // Endpoint
   var endpoint = '127.0.0.1:9700'
@@ -56,6 +56,6 @@ test('did', async function (t) {
   t.deepEqual(await indy.listMyDidsWithMeta(wh), [data])
 
   await indy.closeWallet(wh)
-  await indy.deleteWallet(wName, walletCredentials)
+  await indy.deleteWallet(walletConfig, walletCredentials)
   pool.cleanup()
 })

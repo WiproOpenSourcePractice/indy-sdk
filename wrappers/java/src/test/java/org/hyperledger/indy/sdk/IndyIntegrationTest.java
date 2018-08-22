@@ -5,8 +5,6 @@ import org.hyperledger.indy.sdk.pool.Pool;
 import org.hyperledger.indy.sdk.did.DidJSONParameters;
 import org.hyperledger.indy.sdk.utils.InitHelper;
 import org.hyperledger.indy.sdk.utils.StorageUtils;
-import org.hyperledger.indy.sdk.wallet.InMemWalletType;
-import org.hyperledger.indy.sdk.wallet.Wallet;
 import org.json.JSONObject;
 import org.junit.After;
 import org.junit.Before;
@@ -20,6 +18,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static org.hyperledger.indy.sdk.utils.EnvironmentUtils.getIndyHomePath;
+import static org.hyperledger.indy.sdk.utils.EnvironmentUtils.getTmpPath;
 
 public class IndyIntegrationTest {
 
@@ -31,7 +30,7 @@ public class IndyIntegrationTest {
 	protected static final String VERKEY_MY2 = "kqa2HyagzfMAq42H5f9u3UMwnSBPQx2QfrSyXbUPxMn";
 	protected static final String VERKEY_TRUSTEE = "GJ1SzoWzavQYfNL9XkaJdrQejfztN4XqdsiV4ct3LXKL";
 	protected static final String INVALID_VERKEY = "CnEDk___MnmiHXEV1WFgbV___eYnPqs___TdcZaNhFVW";
-	protected static final String DID = "8wZcEriaNLNKtteJvx7f8i";
+	protected static final String DID = "CnEDk9HrMnmiHXEV1WFgbVCRteYnPqsJwrTdcZaNhFVW";
 	protected static final String DID_MY1 = "VsKV7grR1BUE29mG2Fm2kX";
 	protected static final String DID_MY2 = "2PRyVHmkXQnQzJQKxHxnXC";
 	protected static final String DID_TRUSTEE = "V4SGRU86Z58d6TV7PBUe6f";
@@ -57,15 +56,23 @@ public class IndyIntegrationTest {
 	protected String XYZ_SCHEMA_ATTRIBUTES = "[\"status\", \"period\"]";
 	protected String REVOC_REG_TYPE = "CL_ACCUM";
 	protected String SIGNATURE_TYPE = "CL";
-	protected String TAILS_WRITER_CONFIG = new JSONObject(String.format("{\"base_dir\":\"%s\", \"uri_pattern\":\"\"}", getIndyHomePath("tails")).replace('\\', '/')).toString();
+	protected String TAILS_WRITER_CONFIG =
+			"{ \"base_dir\":\"" +  getIndyHomePath("tails").replace('\\', '/') + "\", \"uri_pattern\":\"\"}";
 	protected String REV_CRED_DEF_CONFIG = "{\"support_revocation\":true}";
+	// note that encoding is not standardized by Indy except that 32-bit integers are encoded as themselves. IS-786
 	protected String GVT_CRED_VALUES = "{\n" +
 			"        \"sex\": {\"raw\": \"male\", \"encoded\": \"5944657099558967239210949258394887428692050081607692519917050\"},\n" +
 			"        \"name\": {\"raw\": \"Alex\", \"encoded\": \"1139481716457488690172217916278103335\"},\n" +
 			"        \"height\": {\"raw\": \"175\", \"encoded\": \"175\"},\n" +
 			"        \"age\": {\"raw\": \"28\", \"encoded\": \"28\"}\n" +
 			"    }";
-	protected String CREDENTIALS = "{\"key\": \"key\"}";
+	protected static final String WALLET_CONFIG = "{ \"id\":\"" + WALLET + "\", \"storage_type\":\"" + TYPE + "\"}";
+
+	protected static final String WALLET_CREDENTIALS = "{ \"key\":\"key\", \"key_derivation_method\": \"ARAGON2I_INT\"}";
+
+	protected static final String PLUGGED_WALLET_CONFIG = "{ \"id\":\"" + WALLET + "\", \"storage_type\":\"unknown_type\"}";
+
+	protected int PROTOCOL_VERSION = 2;
 
 
 	protected static final String TRUSTEE_IDENTITY_JSON =
@@ -77,6 +84,9 @@ public class IndyIntegrationTest {
 	protected static final String MY1_IDENTITY_KEY_JSON =
 			new CryptoJSONParameters.CreateKeyJSONParameter(MY1_SEED, null).toJson();
 
+	protected static final String EXPORT_KEY = "export_key";
+	protected static final String EXPORT_PATH = getTmpPath("export_wallet");
+	protected static final String EXPORT_CONFIG_JSON = "{ \"key\":\"" + EXPORT_KEY + "\", \"path\":\"" + EXPORT_PATH + "\"}";
 
 	@Rule
 	public ExpectedException thrown = ExpectedException.none();
@@ -90,6 +100,7 @@ public class IndyIntegrationTest {
 	public void setUp() throws Exception {
 		InitHelper.init();
 		StorageUtils.cleanupStorage();
+		Pool.setProtocolVersion(PROTOCOL_VERSION).get();
 //		if (! isWalletRegistered) { TODO:FIXME
 //			Wallet.registerWalletType("inmem", new InMemWalletType()).get();
 //		}

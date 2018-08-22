@@ -43,31 +43,15 @@ public class Wallet extends IndyJava.API implements AutoCloseable {
 	 */
 
 	/**
-	 * Callback used when registerWalletType completes.
+	 * Callback used when function returning void completes.
 	 */
-	private static Callback registerWalletTypeCb = new Callback() {
+	private static Callback voidCb = new Callback() {
 
 		@SuppressWarnings({ "unused", "unchecked" })
 		public void callback(int xcommand_handle, int err) {
 
 			CompletableFuture<Void> future = (CompletableFuture<Void>) removeFuture(xcommand_handle);
-			if (! checkCallback(future, err)) return;
-
-			Void result = null;
-			future.complete(result);
-		}
-	};
-
-	/**
-	 * Callback used when createWallet completes.
-	 */
-	private static Callback createWalletCb = new Callback() {
-
-		@SuppressWarnings({"unused", "unchecked"})
-		public void callback(int xcommand_handle, int err) {
-
-			CompletableFuture<Void> future = (CompletableFuture<Void>) removeFuture(xcommand_handle);
-			if (! checkCallback(future, err)) return;
+			if (! checkResult(future, err)) return;
 
 			Void result = null;
 			future.complete(result);
@@ -83,43 +67,11 @@ public class Wallet extends IndyJava.API implements AutoCloseable {
 		public void callback(int xcommand_handle, int err, int handle) {
 
 			CompletableFuture<Wallet> future = (CompletableFuture<Wallet>) removeFuture(xcommand_handle);
-			if (! checkCallback(future, err)) return;
+			if (! checkResult(future, err)) return;
 
 			Wallet wallet = new Wallet(handle);
 
 			Wallet result = wallet;
-			future.complete(result);
-		}
-	};
-
-	/**
-	 * Callback used when closeWallet completes.
-	 */
-	private static Callback closeWalletCb = new Callback() {
-
-		@SuppressWarnings({"unused", "unchecked"})
-		public void callback(int xcommand_handle, int err) {
-
-			CompletableFuture<Void> future = (CompletableFuture<Void>) removeFuture(xcommand_handle);
-			if (! checkCallback(future, err)) return;
-
-			Void result = null;
-			future.complete(result);
-		}
-	};
-
-	/**
-	 * Callback used when deleteWallet completes.
-	 */
-	private static Callback deleteWalletCb = new Callback() {
-
-		@SuppressWarnings({"unused", "unchecked"})
-		public void callback(int xcommand_handle, int err) {
-
-			CompletableFuture<Void> future = (CompletableFuture<Void>) removeFuture(xcommand_handle);
-			if (! checkCallback(future, err)) return;
-
-			Void result = null;
 			future.complete(result);
 		}
 	};
@@ -175,9 +127,9 @@ public class Wallet extends IndyJava.API implements AutoCloseable {
 				null,
 				null,
 				null,
-				registerWalletTypeCb);
+				voidCb);
 
-		checkResult(result);
+		checkResult(future, result);
 
 		return future;
 	}
@@ -185,39 +137,49 @@ public class Wallet extends IndyJava.API implements AutoCloseable {
 	/**
 	 * Creates a new secure wallet with the given unique name.
 	 *
-	 * @param poolName Name of the pool that corresponds to this wallet.
-	 * @param name Name of the wallet.
-	 * @param xtype Type of the wallet. Defaults to 'default'.
-	 * @param config Wallet configuration json. List of supported keys are defined by wallet type.
-	 * @param credentials Wallet credentials json: {
-	 *    "key": <string>
+	 * @param config Wallet configuration json.
+	 * {
+	 *   "id": string, Identifier of the wallet.
+	 *         Configured storage uses this identifier to lookup exact wallet data placement.
+	 *   "storage_type": optional["string"], Type of the wallet storage. Defaults to 'default'.
+	 *                  'Default' storage type allows to store wallet data in the local file.
+	 *                  Custom storage types can be registered with indy_register_wallet_storage call.
+	 *   "storage_config": optional[{config json}], Storage configuration json. Storage type defines set of supported keys.
+	 *                     Can be optional if storage supports default configuration.
+	 *                      For 'default' storage type configuration is:
+	 *   {
+	 *     "path": optional["string"], Path to the directory with wallet files.
+	 *             Defaults to $HOME/.indy_client/wallets.
+	 *             Wallet will be stored in the file {path}/{id}/sqlite.db
+	 *   }
+	 * }
+	 * @param credentials Wallet credentials json
+	 * {
+	 *   "key": string, Passphrase used to derive wallet master key
+	 *   "storage_credentials": optional[{credentials json}] Credentials for wallet storage. Storage type defines set of supported keys.
+	 *                          Can be optional if storage supports default configuration.
+	 *                           For 'default' storage type should be empty.
+	 *   "key_derivation_method": optional[string] algorithm to use for master key derivation:
+	 *                          ARAGON2I_MOD (used by default)
+	 *                          ARAGON2I_INT - less secured but faster
 	 * }
 	 * @return A future that resolves no value.
 	 * @throws IndyException Thrown if a call to the underlying SDK fails.
 	 */
 	public static CompletableFuture<Void> createWallet(
-			String poolName,
-			String name,
-			String xtype,
 			String config,
 			String credentials) throws IndyException {
-
-		ParamGuard.notNullOrWhiteSpace(poolName, "poolName");
-		ParamGuard.notNullOrWhiteSpace(name, "name");
 
 		CompletableFuture<Void> future = new CompletableFuture<Void>();
 		int commandHandle = addFuture(future);
 
 		int result = LibIndy.api.indy_create_wallet(
 				commandHandle,
-				poolName,
-				name,
-				xtype,
 				config,
 				credentials,
-				createWalletCb);
+				voidCb);
 
-		checkResult(result);
+		checkResult(future, result);
 
 		return future;
 	}
@@ -225,32 +187,56 @@ public class Wallet extends IndyJava.API implements AutoCloseable {
 	/**
 	 * Opens the wallet with specific name.
 	 *
-	 * @param name Name of the wallet.
-	 * @param runtimeConfig Runtime wallet configuration json. if NULL, then default runtime_config will be used.
-	 * @param credentials Wallet credentials json: {
-	 *    "key": <string>
+	 * @param config Wallet configuration json.
+	 * {
+	 *   "id": string, Identifier of the wallet.
+	 *         Configured storage uses this identifier to lookup exact wallet data placement.
+	 *   "storage_type": optional["string"], Type of the wallet storage. Defaults to 'default'.
+	 *                  'Default' storage type allows to store wallet data in the local file.
+	 *                  Custom storage types can be registered with indy_register_wallet_storage call.
+	 *   "storage_config": optional[{config json}], Storage configuration json. Storage type defines set of supported keys.
+	 *                     Can be optional if storage supports default configuration.
+	 *                      For 'default' storage type configuration is:
+	 *   {
+	 *     "path": optional["string"], Path to the directory with wallet files.
+	 *             Defaults to $HOME/.indy_client/wallets.
+	 *             Wallet will be stored in the file {path}/{id}/sqlite.db
+	 *   }
 	 * }
+	 * @param credentials Wallet credentials json
+	 *   {
+	 *       "key": string, Passphrase used to derive current wallet master key
+	 *       "rekey": optional["string"], If present than wallet master key will be rotated to a new one
+	 *                                  derived from this passphrase.
+	 *       "storage_credentials": optional[{credentiails object}] Credentials for wallet storage. Storage type defines set of supported keys.
+	 *                              Can be optional if storage supports default configuration.
+	 *                               For 'default' storage type should be empty.
+	 *   "key_derivation_method": optional[string] algorithm to use for master key derivation:
+	 *                          ARAGON2I_MOD (used by default)
+	 *                          ARAGON2I_INT - less secured but faster
+	 *   "rekey_derivation_method": optional[string] algorithm to use for master rekey derivation:
+	 *                              ARAGON2I_MOD (used by default)
+	 *                              ARAGON2I_INT - less secured but faster
+	 *
+	 *   }
 	 * @return A future that resolves no value.
 	 * @throws IndyException Thrown if a call to the underlying SDK fails.
 	 */
 	public static CompletableFuture<Wallet> openWallet(
-			String name,
-			String runtimeConfig,
+			String config,
 			String credentials) throws IndyException {
 
-		ParamGuard.notNullOrWhiteSpace(name, "name");
 
 		CompletableFuture<Wallet> future = new CompletableFuture<Wallet>();
 		int commandHandle = addFuture(future);
 
 		int result = LibIndy.api.indy_open_wallet(
 				commandHandle,
-				name,
-				runtimeConfig,
+				config,
 				credentials,
 				openWalletCb);
 
-		checkResult(result);
+		checkResult(future, result);
 
 		return future;
 	}
@@ -275,9 +261,9 @@ public class Wallet extends IndyJava.API implements AutoCloseable {
 		int result = LibIndy.api.indy_close_wallet(
 				commandHandle,
 				handle,
-				closeWalletCb);
+				voidCb);
 
-		checkResult(result);
+		checkResult(future, result);
 
 		return future;
 	}
@@ -285,29 +271,150 @@ public class Wallet extends IndyJava.API implements AutoCloseable {
 	/**
 	 * Deletes an existing wallet.
 	 *
-	 * @param name Name of the wallet to delete.
-	 * @param credentials Wallet credentials json: {
-	 *    "key": <string>
+	 * @param config Wallet configuration json.
+	 * {
+	 *   "id": string, Identifier of the wallet.
+	 *         Configured storage uses this identifier to lookup exact wallet data placement.
+	 *   "storage_type": optional["string"], Type of the wallet storage. Defaults to 'default'.
+	 *                  'Default' storage type allows to store wallet data in the local file.
+	 *                  Custom storage types can be registered with indy_register_wallet_storage call.
+	 *   "storage_config": optional[{config json}], Storage configuration json. Storage type defines set of supported keys.
+	 *                     Can be optional if storage supports default configuration.
+	 *                      For 'default' storage type configuration is:
+	 *   {
+	 *     "path": optional["string"], Path to the directory with wallet files.
+	 *             Defaults to $HOME/.indy_client/wallets.
+	 *             Wallet will be stored in the file {path}/{id}/sqlite.db
+	 *   }
 	 * }
+	 * @param credentials Wallet credentials json
+	 *   {
+	 *       "key": string, Passphrase used to derive current wallet master key
+	 *       "storage_credentials": optional[{credentials json}] Credentials for wallet storage. Storage type defines set of supported keys.
+	 *                              Can be optional if storage supports default configuration.
+	 *                               For 'default' storage type should be empty.
+	 *       "key_derivation_method": optional[string] algorithm to use for master key derivation:
+	 *                                ARAGON2I_MOD (used by default)
+	 *                                ARAGON2I_INT - less secured but faster
+	 *   }
+	 *                       
 	 * @return A future that resolves no value.
 	 * @throws IndyException Thrown if a call to the underlying SDK fails.
 	 */
 	public static CompletableFuture<Void> deleteWallet(
-			String name,
+			String config,
 			String credentials) throws IndyException {
-
-		ParamGuard.notNullOrWhiteSpace(name, "name");
 
 		CompletableFuture<Void> future = new CompletableFuture<Void>();
 		int commandHandle = addFuture(future);
 
 		int result = LibIndy.api.indy_delete_wallet(
 				commandHandle,
-				name,
+				config,
 				credentials,
-				deleteWalletCb);
+				voidCb);
 
-		checkResult(result);
+		checkResult(future, result);
+
+		return future;
+	}
+
+	/**
+	 * Exports opened wallet to the file.
+	 *
+	 * @param wallet The wallet to export.
+	 * @param exportConfigJson: JSON containing settings for input operation.
+	 *   {
+	 *     "path": "string", Path of the file that contains exported wallet content
+	 *     "key": "string", Passphrase used to derive export key
+	 *     "key_derivation_method": optional[string] algorithm to use for export key derivation:
+	 *                            ARAGON2I_MOD (used by default)
+	 *                            ARAGON2I_INT - less secured but faster
+	 *   }
+	 * @return A future that resolves no value.
+	 * @throws IndyException Thrown if a call to the underlying SDK fails.
+	 */
+	public static CompletableFuture<Void> exportWallet(
+			Wallet wallet,
+			String exportConfigJson) throws IndyException {
+
+		ParamGuard.notNull(wallet, "wallet");
+		ParamGuard.notNull(exportConfigJson, "exportConfigJson");
+
+		CompletableFuture<Void> future = new CompletableFuture<Void>();
+		int commandHandle = addFuture(future);
+
+		int handle = wallet.getWalletHandle();
+
+		int result = LibIndy.api.indy_export_wallet(
+				commandHandle,
+				handle,
+				exportConfigJson,
+				voidCb);
+
+		checkResult(future, result);
+
+		return future;
+	}
+
+	/**
+	 * Creates a new secure wallet with the given unique name and then imports its content
+	 * according to fields provided in import_config
+	 * This can be seen as an indy_create_wallet call with additional content import
+	 *
+	 * @param config Wallet configuration json. List of supported keys are defined by wallet type.
+	 * @param credentials Wallet configuration json.
+	 * {
+	 *   "id": string, Identifier of the wallet.
+	 *         Configured storage uses this identifier to lookup exact wallet data placement.
+	 *   "storage_type": optional["string"], Type of the wallet storage. Defaults to 'default'.
+	 *                  'Default' storage type allows to store wallet data in the local file.
+	 *                  Custom storage types can be registered with indy_register_wallet_storage call.
+	 *   "storage_config": optional[{config json}], Storage configuration json. Storage type defines set of supported keys.
+	 *                     Can be optional if storage supports default configuration.
+	 *                      For 'default' storage type configuration is:
+	 *   {
+	 *     "path": optional["string"], Path to the directory with wallet files.
+	 *             Defaults to $HOME/.indy_client/wallets.
+	 *             Wallet will be stored in the file {path}/{id}/sqlite.db
+	 *   }
+	 * }
+	 * @param credentials Wallet credentials json
+	 * {
+	 *   "key": string, Passphrase used to derive wallet master key
+	 *   "storage_credentials": optional[{credentials json}] Credentials for wallet storage. Storage type defines set of supported keys.
+	 *                          Can be optional if storage supports default configuration.
+	 *                          For 'default' storage type should be empty.
+	 *   "key_derivation_method": optional[string] algorithm to use for master key derivation:
+	 *                          ARAGON2I_MOD (used by default)
+	 *                          ARAGON2I_INT - less secured but faster
+	 * }	
+	 * @param importConfigJson Import settings json.
+	 * {
+	 *   "path": "string", path of the file that contains exported wallet content
+	 *   "key": "string", passphrase used to derive export key
+	 * }
+	 * @return A future that resolves no value.
+	 * @throws IndyException Thrown if a call to the underlying SDK fails.
+	 */
+	public static CompletableFuture<Void> importWallet(
+			String config,
+			String credentials,
+			String importConfigJson) throws IndyException {
+
+		ParamGuard.notNull(importConfigJson, "importConfigJson");
+
+		CompletableFuture<Void> future = new CompletableFuture<Void>();
+		int commandHandle = addFuture(future);
+
+		int result = LibIndy.api.indy_import_wallet(
+				commandHandle,
+				config,
+				credentials,
+				importConfigJson,
+				voidCb);
+
+		checkResult(future, result);
 
 		return future;
 	}

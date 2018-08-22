@@ -39,7 +39,6 @@ impl Pool {
         super::results::result_to_int(err, receiver)
     }
 
-    #[allow(dead_code)] //TODO add refresh pool command or remove this code
     pub fn refresh(pool_handle: i32) -> Result<(), ErrorCode> {
         let (receiver, command_handle, cb) = super::callbacks::_closure_to_cb_ec();
 
@@ -70,6 +69,14 @@ impl Pool {
         let pool_name = CString::new(pool_name).unwrap();
 
         let err = unsafe { indy_delete_pool_ledger_config(cmd_id, pool_name.as_ptr(), cb) };
+
+        super::results::result_to_empty(err, receiver)
+    }
+
+    pub fn set_protocol_version(protocol_version: usize) -> Result<(), ErrorCode> {
+        let (receiver, cmd_id, cb) = super::callbacks::_closure_to_cb_ec();
+
+        let err = unsafe { indy_set_protocol_version(cmd_id, protocol_version, cb) };
 
         super::results::result_to_empty(err, receiver)
     }
@@ -107,4 +114,9 @@ extern {
     pub fn indy_delete_pool_ledger_config(command_handle: i32,
                                           config_name: *const c_char,
                                           cb: Option<extern fn(xcommand_handle: i32, err: ErrorCode)>) -> ErrorCode;
+
+    #[no_mangle]
+    pub fn indy_set_protocol_version(command_handle: i32,
+                                     protocol_version: usize,
+                                     cb: Option<extern fn(xcommand_handle: i32, err: ErrorCode)>) -> ErrorCode;
 }

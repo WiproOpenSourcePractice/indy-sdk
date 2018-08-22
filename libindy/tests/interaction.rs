@@ -1,20 +1,30 @@
-extern crate indy;
-extern crate uuid;
-extern crate time;
-extern crate named_type;
+#[macro_use]
+extern crate lazy_static;
+
 #[macro_use]
 extern crate named_type_derive;
 
-// Workaround to share some utils code based on indy sdk types between tests and indy sdk
-use indy::api as api;
+#[macro_use]
+extern crate derivative;
 
 #[macro_use]
 extern crate serde_derive;
+
 #[macro_use]
 extern crate serde_json;
-#[macro_use]
-extern crate lazy_static;
+
+extern crate byteorder;
+extern crate indy;
 extern crate indy_crypto;
+extern crate uuid;
+extern crate named_type;
+extern crate rmp_serde;
+extern crate rust_base58;
+extern crate time;
+extern crate serde;
+
+// Workaround to share some utils code based on indy sdk types between tests and indy sdk
+use indy::api as api;
 
 #[macro_use]
 mod utils;
@@ -39,8 +49,6 @@ use utils::pool::PoolUtils;
 use utils::ledger::LedgerUtils;
 use utils::did::DidUtils;
 
-use indy_crypto::utils::json::JsonDecodable;
-
 use std::thread;
 
 #[cfg(feature = "revocation_tests")]
@@ -52,13 +60,13 @@ fn anoncreds_revocation_interaction_test_issuance_by_demand() {
     let pool_handle = PoolUtils::create_and_open_pool_ledger(POOL).unwrap();
 
     // Issuer creates wallet, gets wallet handle
-    let issuer_wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+    let issuer_wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
     // Issuer create DID
     let (issuer_did, _) = DidUtils::create_store_and_publish_my_did_from_trustee(issuer_wallet_handle, pool_handle).unwrap();
 
     // Prover creates wallet, gets wallet handle
-    let prover_wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+    let prover_wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
     // Prover create DID
     let (prover_did, prover_verkey) = DidUtils::create_my_did(prover_wallet_handle, "{}").unwrap();
@@ -94,7 +102,7 @@ fn anoncreds_revocation_interaction_test_issuance_by_demand() {
                                                                                            &schema_json,
                                                                                            TAG_1,
                                                                                            None,
-                                                                                           &AnoncredsUtils::revocation_cred_def_config()).unwrap();
+                                                                                           Some(&AnoncredsUtils::revocation_cred_def_config())).unwrap();
 
     // Issuer post CredentialDefinition to Ledger
     let cred_def_request = LedgerUtils::build_cred_def_txn(&issuer_did, &cred_def_json).unwrap();
@@ -130,7 +138,7 @@ fn anoncreds_revocation_interaction_test_issuance_by_demand() {
 
     // Issuer creates Credential Offer
     let cred_offer_json = AnoncredsUtils::issuer_create_credential_offer(issuer_wallet_handle, &cred_def_id).unwrap();
-    let cred_offer = CredentialOffer::from_json(&cred_offer_json).unwrap();
+    let cred_offer: CredentialOffer = serde_json::from_str(&cred_offer_json).unwrap();
 
     // Prover gets CredentialDefinition from Ledger
     let get_cred_def_request = LedgerUtils::build_get_cred_def_txn(&prover_did, &cred_offer.cred_def_id).unwrap();
@@ -163,7 +171,7 @@ fn anoncreds_revocation_interaction_test_issuance_by_demand() {
     LedgerUtils::sign_and_submit_request(pool_handle, issuer_wallet_handle, &issuer_did, &rev_reg_entry_request).unwrap();
 
     // Prover gets RevocationRegistryDefinition
-    let credential = Credential::from_json(&cred_json).unwrap();
+    let credential: Credential = serde_json::from_str(&cred_json).unwrap();
     let get_rev_reg_def_request = LedgerUtils::build_get_revoc_reg_def_request(&prover_did, &credential.rev_reg_id.unwrap()).unwrap();
     let get_rev_reg_def_response = LedgerUtils::submit_request(pool_handle, &get_rev_reg_def_request).unwrap();
     let (_, revoc_reg_def_json) = LedgerUtils::parse_get_revoc_reg_def_response(&get_rev_reg_def_response).unwrap();
@@ -398,13 +406,13 @@ fn anoncreds_revocation_interaction_test_issuance_by_default() {
     let pool_handle = PoolUtils::create_and_open_pool_ledger(POOL).unwrap();
 
     // Issuer creates wallet, gets wallet handle
-    let issuer_wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+    let issuer_wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
     // Issuer create DID
     let (issuer_did, _) = DidUtils::create_store_and_publish_my_did_from_trustee(issuer_wallet_handle, pool_handle).unwrap();
 
     // Prover creates wallet, gets wallet handle
-    let prover_wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+    let prover_wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
     // Prover create DID
     let (prover_did, prover_verkey) = DidUtils::create_my_did(prover_wallet_handle, "{}").unwrap();
@@ -440,7 +448,7 @@ fn anoncreds_revocation_interaction_test_issuance_by_default() {
                                                                                            &schema_json,
                                                                                            TAG_1,
                                                                                            None,
-                                                                                           &AnoncredsUtils::revocation_cred_def_config()).unwrap();
+                                                                                           Some(&AnoncredsUtils::revocation_cred_def_config())).unwrap();
 
     // Issuer post CredentialDefinition to Ledger
     let cred_def_request = LedgerUtils::build_cred_def_txn(&issuer_did, &cred_def_json).unwrap();
@@ -704,19 +712,19 @@ fn anoncreds_revocation_interaction_test_issuance_by_demand_three_credentials_po
     let pool_handle = PoolUtils::create_and_open_pool_ledger(POOL).unwrap();
 
     // Issuer creates wallet, gets wallet handle
-    let issuer_wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+    let issuer_wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
     // Issuer create DID
     let (issuer_did, _) = DidUtils::create_store_and_publish_my_did_from_trustee(issuer_wallet_handle, pool_handle).unwrap();
 
     // Prover creates wallet, gets wallet handle
-    let prover1_wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+    let prover1_wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
     // Prover2 creates wallet, gets wallet handle
-    let prover2_wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+    let prover2_wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
     // Prover3 creates wallet, gets wallet handle
-    let prover3_wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+    let prover3_wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
     // Prover1 create DID
     let (prover1_did, _) = DidUtils::create_my_did(prover1_wallet_handle, "{}").unwrap();
@@ -748,7 +756,7 @@ fn anoncreds_revocation_interaction_test_issuance_by_demand_three_credentials_po
                                                                                            &schema_json,
                                                                                            TAG_1,
                                                                                            None,
-                                                                                           &AnoncredsUtils::revocation_cred_def_config()).unwrap();
+                                                                                           Some(&AnoncredsUtils::revocation_cred_def_config())).unwrap();
 
     // Issuer post CredentialDefinition to Ledger
     let cred_def_request = LedgerUtils::build_cred_def_txn(&issuer_did, &cred_def_json).unwrap();
@@ -978,19 +986,19 @@ fn anoncreds_revocation_interaction_test_issuance_by_demand_three_credentials_po
     let pool_handle = PoolUtils::create_and_open_pool_ledger(POOL).unwrap();
 
     // Issuer creates wallet, gets wallet handle
-    let issuer_wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+    let issuer_wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
     // Issuer create DID
     let (issuer_did, _) = DidUtils::create_store_and_publish_my_did_from_trustee(issuer_wallet_handle, pool_handle).unwrap();
 
     // Prover creates wallet, gets wallet handle
-    let prover1_wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+    let prover1_wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
     // Prover2 creates wallet, gets wallet handle
-    let prover2_wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+    let prover2_wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
     // Prover3 creates wallet, gets wallet handle
-    let prover3_wallet_handle = WalletUtils::create_and_open_wallet(POOL, None).unwrap();
+    let prover3_wallet_handle = WalletUtils::create_and_open_default_wallet().unwrap();
 
     // Prover1 create DID
     let (prover1_did, _) = DidUtils::create_my_did(prover1_wallet_handle, "{}").unwrap();
@@ -1030,7 +1038,7 @@ fn anoncreds_revocation_interaction_test_issuance_by_demand_three_credentials_po
                                                                                            &schema_json,
                                                                                            TAG_1,
                                                                                            None,
-                                                                                           &AnoncredsUtils::revocation_cred_def_config()).unwrap();
+                                                                                           Some(&AnoncredsUtils::revocation_cred_def_config())).unwrap();
 
     // Issuer post CredentialDefinition to Ledger
     let cred_def_request = LedgerUtils::build_cred_def_txn(&issuer_did, &cred_def_json).unwrap();

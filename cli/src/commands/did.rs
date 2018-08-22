@@ -34,7 +34,7 @@ pub mod new_command {
     );
 
     fn execute(ctx: &CommandContext, params: &CommandParams) -> Result<(), ()> {
-        trace!("execute >> ctx {:?} params {:?}", ctx, params);
+        trace!("execute >> ctx {:?} params {:?}", ctx, secret!(params));
 
         let wallet_handle = ensure_opened_wallet_handle(&ctx)?;
 
@@ -66,7 +66,7 @@ pub mod new_command {
                 println_succ!("Did \"{}\" has been created with \"{}\" verkey", did, vk);
                 Ok(did)
             }
-            Err(ErrorCode::DidAlreadyExistsError) => Err(println_err!("Did already exists: {:?}", did.unwrap_or(""))),
+            Err(ErrorCode::DidAlreadyExistsError) => Err(println_err!("Did already exists")),
             Err(ErrorCode::UnknownCryptoTypeError) => Err(println_err!("Unknown crypto type")),
             Err(ErrorCode::CommonInvalidStructure) => Err(println_err!("Invalid format of command params. Please check format of posted JSONs, Keys, DIDs and etc...")),
             Err(err) => Err(println_err!("Indy SDK error occurred {:?}", err)),
@@ -199,7 +199,7 @@ pub mod rotate_key_command {
                 .finalize());
 
     fn execute(ctx: &CommandContext, params: &CommandParams) -> Result<(), ()> {
-        trace!("execute >> ctx {:?} params {:?}", ctx, params);
+        trace!("execute >> ctx {:?} params {:?}", ctx, secret!(params));
 
         let seed = get_opt_str_param("seed", params).map_err(error_err!())?;
 
@@ -448,7 +448,7 @@ pub mod tests {
         }
 
         #[test]
-        pub fn use_works_for_unknow_did() {
+        pub fn use_works_for_unknown_did() {
             TestUtils::cleanup_storage();
             let ctx = CommandContext::new();
 

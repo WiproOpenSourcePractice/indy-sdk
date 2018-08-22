@@ -9,8 +9,6 @@ use api::ErrorCode;
 use errors::ToErrorCode;
 
 use self::indy_crypto::errors::IndyCryptoError;
-use openssl::error::ErrorStack;
-
 
 #[derive(Debug)]
 pub enum CommonError {
@@ -54,11 +52,11 @@ impl fmt::Display for CommonError {
             CommonError::InvalidParam2(ref description) => write!(f, "Invalid param 2: {}", description),
             CommonError::InvalidParam3(ref description) => write!(f, "Invalid param 3: {}", description),
             CommonError::InvalidParam4(ref description) => write!(f, "Invalid param 4: {}", description),
-            CommonError::InvalidParam5(ref description) => write!(f, "Invalid param 4: {}", description),
-            CommonError::InvalidParam6(ref description) => write!(f, "Invalid param 4: {}", description),
-            CommonError::InvalidParam7(ref description) => write!(f, "Invalid param 4: {}", description),
-            CommonError::InvalidParam8(ref description) => write!(f, "Invalid param 4: {}", description),
-            CommonError::InvalidParam9(ref description) => write!(f, "Invalid param 4: {}", description),
+            CommonError::InvalidParam5(ref description) => write!(f, "Invalid param 5: {}", description),
+            CommonError::InvalidParam6(ref description) => write!(f, "Invalid param 6: {}", description),
+            CommonError::InvalidParam7(ref description) => write!(f, "Invalid param 7: {}", description),
+            CommonError::InvalidParam8(ref description) => write!(f, "Invalid param 8: {}", description),
+            CommonError::InvalidParam9(ref description) => write!(f, "Invalid param 9: {}", description),
             CommonError::InvalidState(ref description) => write!(f, "Invalid library state: {}", description),
             CommonError::InvalidStructure(ref description) => write!(f, "Invalid structure: {}", description),
             CommonError::IOError(ref err) => err.fmt(f)
@@ -145,25 +143,18 @@ impl From<BorrowMutError> for CommonError {
     }
 }
 
-impl From<ErrorStack> for CommonError {
-    fn from(err: ErrorStack) -> CommonError {
-        // TODO: FIXME: Analyze ErrorStack and split invalid structure errors from other errors
-        CommonError::InvalidStructure(err.description().to_string())
-    }
-}
-
 impl From<indy_crypto::errors::IndyCryptoError> for CommonError {
     fn from(err: indy_crypto::errors::IndyCryptoError) -> Self {
         match err {
-            IndyCryptoError::InvalidParam1(err) => CommonError::InvalidParam1(err),
-            IndyCryptoError::InvalidParam2(err) => CommonError::InvalidParam2(err),
-            IndyCryptoError::InvalidParam3(err) => CommonError::InvalidParam3(err),
-            IndyCryptoError::InvalidParam4(err) => CommonError::InvalidParam4(err),
-            IndyCryptoError::InvalidParam5(err) => CommonError::InvalidParam5(err),
-            IndyCryptoError::InvalidParam6(err) => CommonError::InvalidParam6(err),
-            IndyCryptoError::InvalidParam7(err) => CommonError::InvalidParam7(err),
-            IndyCryptoError::InvalidParam8(err) => CommonError::InvalidParam8(err),
-            IndyCryptoError::InvalidParam9(err) => CommonError::InvalidParam9(err),
+            IndyCryptoError::InvalidParam1(err) => CommonError::InvalidStructure(err),
+            IndyCryptoError::InvalidParam2(err) => CommonError::InvalidStructure(err),
+            IndyCryptoError::InvalidParam3(err) => CommonError::InvalidStructure(err),
+            IndyCryptoError::InvalidParam4(err) => CommonError::InvalidStructure(err),
+            IndyCryptoError::InvalidParam5(err) => CommonError::InvalidStructure(err),
+            IndyCryptoError::InvalidParam6(err) => CommonError::InvalidStructure(err),
+            IndyCryptoError::InvalidParam7(err) => CommonError::InvalidStructure(err),
+            IndyCryptoError::InvalidParam8(err) => CommonError::InvalidStructure(err),
+            IndyCryptoError::InvalidParam9(err) => CommonError::InvalidStructure(err),
             IndyCryptoError::InvalidState(err) => CommonError::InvalidState(err),
             IndyCryptoError::InvalidStructure(err) => CommonError::InvalidStructure(err),
             IndyCryptoError::IOError(err) => CommonError::IOError(err),

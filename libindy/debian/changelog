@@ -1,21 +1,12 @@
-libindy (1.4.0) unstable; urgency=medium
+libindy (1.6.2) unstable; urgency=medium
 
-  [ Hyperledger ]
-  * Indy CLI tool added.
-  * Switching from DID-based crypto to keys-based crypto:
-    * All DID-based crypto functions (`signus` module) are removed.
-    * Added key-based `crypto` module.
-    * Added functions to resolve keys for DIDs.
-  * Agent API moved into `crypto` module.
-  * Support the latest version of CL crypto (through `indy-crypto` library):
-    * Added nonce for all protocol steps.
-    * Added consistency proofs for protocol steps.
-    * Representation of Proofs changed (sub-proofs now are ordered).
-  * Support of complete Credentials Revocation workflow in Anoncreds API:
-    * Support large Tails handling through BlobStorage API.
-    * Support new Revocation transactions.
-    * Add calls for remote Witness calculation.
-    * State-less approach in Credential issuance process.
-    * Unified reference approach for Anoncreds entities.
-  * Extend DID API: added some methods for iteration over entities in the wallet.
-  * Bugfixes.
+[ Hyperledger ]
+
+* 1.6.2
+    * Performed the following changes related to Libindy Ledger API:
+        * Added `indy_submit_action` endpoint that provides the ability to send either GET_VALIDATOR_INFO or
+          POOL_RESTART request to specific nodes and to specify custom timeout for a response from a node.
+        * Updated `indy_build_pool_upgrade_request` API function to accept the additional parameter `package` that allow specify package to be upgraded.
+    * Updated wallet `credentials` to accept the additional parameter `key_derivation_method`.
+      This parameter provides the ability to use different crypto algorithms for master key derivation.
+    * Bugfixes

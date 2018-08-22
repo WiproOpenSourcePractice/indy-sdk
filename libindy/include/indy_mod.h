@@ -87,7 +87,7 @@ typedef enum
     WalletStorageError = 210,
 
     // Error during encryption-related operations
-    WalletEncryptonError = 211,
+    WalletEncryptionError = 211,
 
     // Requested wallet item not found
      WalletItemNotFound = 212,
@@ -123,6 +123,10 @@ typedef enum
     // Timeout for action
     PoolLedgerTimeout = 307,
 
+    // Attempt to open Pool for witch Genesis Transactions are not compatible with set Protocol version.
+    // Call pool.indy_set_protocol_version to set correct Protocol version.
+    PoolIncompatibleProtocolVersion = 308,
+
     // Revocation registry is full and creation of new registry is necessary
     AnoncredsRevocationRegistryFullError = 400,
 
@@ -152,7 +156,16 @@ typedef enum
     PaymentIncompatibleMethodsError = 701,
 
     // Insufficient funds on inputs
-    PaymentInsufficientFundsError = 702
+    PaymentInsufficientFundsError = 702,
+
+    // No such source on a ledger
+    PaymentSourceDoesNotExistError = 703,
+
+    // Operation is not supported for payment method
+    PaymentOperationNotSupportedError = 704,
+
+    // Extra funds on inputs
+    PaymentExtraFundsError = 705
 
 } indy_error_t;
 

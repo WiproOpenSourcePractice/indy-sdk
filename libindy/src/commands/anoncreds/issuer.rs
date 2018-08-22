@@ -19,7 +19,7 @@ use self::indy_crypto::cl::{
     Witness,
     new_nonce
 };
-use self::indy_crypto::utils::json::{JsonDecodable, JsonEncodable};
+
 use super::tails::{SDKTailsAccessor, store_tails_from_generator};
 use domain::anoncreds::schema::{Schema, SchemaV1};
 use domain::anoncreds::credential_definition::{
@@ -65,7 +65,7 @@ pub enum IssuerCommand {
         String, // schema json
         String, // tag
         Option<String>, // type
-        String, // config_json
+        Option<String>, // config_json
         Box<Fn(Result<(String, String), IndyError>) + Send>),
     CreateAndStoreRevocationRegistry(
         i32, // wallet handle
@@ -138,7 +138,7 @@ impl IssuerCommandExecutor {
             IssuerCommand::CreateAndStoreCredentialDefinition(wallet_handle, issuer_did, schema_json, tag, type_, config_json, cb) => {
                 info!(target: "issuer_command_executor", "CreateAndStoreCredentialDefinition command received");
                 cb(self.create_and_store_credential_definition(wallet_handle, &issuer_did, &schema_json, &tag,
-                                                               type_.as_ref().map(String::as_str), &config_json));
+                                                               type_.as_ref().map(String::as_str), config_json.as_ref().map(String::as_str)));
             }
             IssuerCommand::CreateAndStoreRevocationRegistry(wallet_handle, issuer_did, type_, tag, cred_def_id, config_json,
                                                             tails_writer_handle, cb) => {
@@ -200,7 +200,7 @@ impl IssuerCommandExecutor {
             seq_no: None
         });
 
-        let schema_json = schema.to_json()
+        let schema_json = serde_json::to_string(&schema)
             .map_err(|err| CommonError::InvalidState(format!("Cannot serialize Schema: {:?}", err)))?;
 
         debug!("create_schema <<< schema_id: {:?}, schema_json: {:?}", schema_id, schema_json);
@@ -214,28 +214,34 @@ impl IssuerCommandExecutor {
                                               schema_json: &str,
                                               tag: &str,
                                               type_: Option<&str>,
-                                              config_json: &str) -> Result<(String, String), IndyError> {
+                                              config_json: Option<&str>) -> Result<(String, String), IndyError> {
         debug!("create_and_store_credential_definition >>> wallet_handle: {:?}, issuer_did: {:?}, schema_json: {:?}, tag: {:?}, \
               type_: {:?}, config_json: {:?}", wallet_handle, issuer_did, schema_json, tag, type_, config_json);
 
         self.crypto_service.validate_did(issuer_did)?;
 
-        let schema: SchemaV1 = SchemaV1::from(Schema::from_json(schema_json)
-            .map_err(|err| CommonError::InvalidStructure(format!("Cannot deserialize Schema: {:?}", err)))?);
+        let schema = serde_json::from_str::<Schema>(schema_json)
+            .map(SchemaV1::from)
+            .map_err(|err| CommonError::InvalidStructure(format!("Cannot deserialize Schema: {:?}", err)))?;
 
-        let cred_def_config: CredentialDefinitionConfig = CredentialDefinitionConfig::from_json(config_json)
-            .map_err(|err| CommonError::InvalidStructure(format!("Cannot deserialize CredentialDefinitionConfig: {:?}", err)))?;
+        let cred_def_config: CredentialDefinitionConfig = config_json
+            .map(serde_json::from_str::<CredentialDefinitionConfig>)
+            .map_or(Ok(None), |v| v.map(Some))
+            .map_err(|err| CommonError::InvalidStructure(format!("Cannot deserialize Credential Definition Config: {:?}", err)))?
+            .unwrap_or(CredentialDefinitionConfig::default());
 
-        let signature_type = match type_ {
-            Some(type_) =>
-                SignatureType::from_json(&format!("\"{}\"", type_))
-                    .map_err(|err| CommonError::InvalidStructure(format!("Cannot deserialize SignatureType: {:?}", err)))?,
-            None => SignatureType::CL,
-        };
+        let signature_type = type_
+            .map(|v| format!("\"{}\"", v))
+            .as_ref()
+            .map(String::as_str)
+            .map(serde_json::from_str::<SignatureType>)
+            .map_or(Ok(None), |v| v.map(Some))
+            .map_err(|err| CommonError::InvalidStructure(format!("Cannot deserialize Signature Type: {:?}", err)))?
+            .unwrap_or(SignatureType::CL);
 
         let schema_id = schema.seq_no.map(|n| n.to_string()).unwrap_or(schema.id.clone());
 
-        let cred_def_id = CredentialDefinition::cred_def_id(issuer_did, &schema_id, &signature_type.to_str()); // TODO: FIXME
+        let cred_def_id = CredentialDefinition::cred_def_id(issuer_did, &schema_id, &signature_type.to_str(), tag);
 
         if self.wallet_service.record_exists::<CredentialDefinition>(wallet_handle, &cred_def_id)? {
             return Err(IndyError::AnoncredsError(AnoncredsError::CredDefAlreadyExists(format!("CredentialDefinition for cred_def_id: {:?} already exists", cred_def_id))));
@@ -262,11 +268,11 @@ impl IssuerCommandExecutor {
             value: cred_key_correctness_proof
         };
 
-        let cred_def_json = self.wallet_service.add_indy_object(wallet_handle, &cred_def_id, &cred_def, "{}")?;
-        self.wallet_service.add_indy_object(wallet_handle, &cred_def_id, &cred_def_priv_key, "{}")?;
-        self.wallet_service.add_indy_object(wallet_handle, &cred_def_id, &cred_def_correctness_proof, "{}")?;
+        let cred_def_json = self.wallet_service.add_indy_object(wallet_handle, &cred_def_id, &cred_def, &HashMap::new())?;
+        self.wallet_service.add_indy_object(wallet_handle, &cred_def_id, &cred_def_priv_key, &HashMap::new())?;
+        self.wallet_service.add_indy_object(wallet_handle, &cred_def_id, &cred_def_correctness_proof, &HashMap::new())?;
 
-        self._wallet_set_schema_id(wallet_handle, &cred_def_id, &schema.id)?; // TODO: FIXME
+        self._wallet_set_schema_id(wallet_handle, &cred_def_id, &schema.id)?; // TODO: FIXME delete temporary storing of schema id
 
         debug!("create_and_store_credential_definition <<< cred_def_id: {:?}, cred_def_json: {:?}", cred_def_id, cred_def_json);
         Ok((cred_def_id, cred_def_json))
@@ -283,22 +289,26 @@ impl IssuerCommandExecutor {
         debug!("create_and_store_revocation_registry >>> wallet_handle: {:?}, issuer_did: {:?}, type_: {:?}, tag: {:?}, cred_def_id: {:?}, config_json: {:?}, \
                tails_handle: {:?}", wallet_handle, issuer_did, type_, tag, cred_def_id, config_json, tails_writer_handle);
 
-        let rev_reg_config: RevocationRegistryConfig = RevocationRegistryConfig::from_json(config_json)
+        let rev_reg_config: RevocationRegistryConfig = serde_json::from_str(config_json)
             .map_err(|err| CommonError::InvalidStructure(format!("Cannot deserialize RevocationRegistryConfig: {:?}", err)))?;
 
-        let rev_reg_type = match type_ {
-            Some(type_) =>
-                RegistryType::from_json(&format!("\"{}\"", type_))
-                    .map_err(|err| CommonError::InvalidStructure(format!("Cannot deserialize RevocationRegistryType: {:?}", err)))?,
-            None => RegistryType::CL_ACCUM,
-        };
+        let rev_reg_type = type_
+            .map(|v| format!("\"{}\"", v))
+            .as_ref()
+            .map(String::as_str)
+            .map(serde_json::from_str::<RegistryType>)
+            .map_or(Ok(None), |v| v.map(Some))
+            .map_err(|err| CommonError::InvalidStructure(format!("Cannot deserialize Registry Type: {:?}", err)))?
+            .unwrap_or(RegistryType::CL_ACCUM);
 
-        let issuance_type = match rev_reg_config.issuance_type {
-            Some(type_) =>
-                IssuanceType::from_json(&format!("\"{}\"", type_))
-                    .map_err(|err| CommonError::InvalidStructure(format!("Cannot deserialize IssuanceType: {:?}", err)))?,
-            None => IssuanceType::ISSUANCE_ON_DEMAND,
-        };
+        let issuance_type = rev_reg_config.issuance_type
+            .map(|v| format!("\"{}\"", v))
+            .as_ref()
+            .map(String::as_str)
+            .map(serde_json::from_str::<IssuanceType>)
+            .map_or(Ok(None), |v| v.map(Some))
+            .map_err(|err| CommonError::InvalidStructure(format!("Cannot deserialize Issuance Type: {:?}", err)))?
+            .unwrap_or(IssuanceType::ISSUANCE_ON_DEMAND);
 
         let max_cred_num = rev_reg_config.max_cred_num.unwrap_or(100000);
 
@@ -345,11 +355,11 @@ impl IssuerCommandExecutor {
             value: revoc_key_private
         };
 
-        let revoc_reg_def_json = self.wallet_service.add_indy_object(wallet_handle, &rev_reg_id, &revoc_reg_def, "{}")?;
+        let revoc_reg_def_json = self.wallet_service.add_indy_object(wallet_handle, &rev_reg_id, &revoc_reg_def, &HashMap::new())?;
 
-        let revoc_reg_json = self.wallet_service.add_indy_object(wallet_handle, &rev_reg_id, &revoc_reg, "{}")?;
+        let revoc_reg_json = self.wallet_service.add_indy_object(wallet_handle, &rev_reg_id, &revoc_reg, &HashMap::new())?;
 
-        self.wallet_service.add_indy_object(wallet_handle, &rev_reg_id, &revoc_reg_def_priv, "{}")?;
+        self.wallet_service.add_indy_object(wallet_handle, &rev_reg_id, &revoc_reg_def_priv, &HashMap::new())?;
 
         let rev_reg_info = RevocationRegistryInfo {
             id: rev_reg_id.clone(),
@@ -357,7 +367,7 @@ impl IssuerCommandExecutor {
             used_ids: HashSet::new(),
         };
 
-        self.wallet_service.add_indy_object(wallet_handle, &rev_reg_id, &rev_reg_info, "{}")?;
+        self.wallet_service.add_indy_object(wallet_handle, &rev_reg_id, &rev_reg_info, &HashMap::new())?;
 
         debug!("create_and_store_revocation_registry <<< rev_reg_id: {:?}, revoc_reg_def_json: {:?}, revoc_reg_json: {:?}",
                rev_reg_id, revoc_reg_def_json, revoc_reg_json);
@@ -376,7 +386,7 @@ impl IssuerCommandExecutor {
         let nonce = new_nonce()
             .map_err(|err| IndyError::AnoncredsError(AnoncredsError::from(err)))?;
 
-        let schema_id = self._wallet_get_schema_id(wallet_handle, &cred_def_id)?; // TODO: FIXME
+        let schema_id = self._wallet_get_schema_id(wallet_handle, &cred_def_id)?; // TODO: FIXME get CredDef from wallet and use CredDef.schema_id
 
         let credential_offer = CredentialOffer {
             schema_id: schema_id.to_string(),
@@ -385,7 +395,7 @@ impl IssuerCommandExecutor {
             nonce
         };
 
-        let credential_offer_json = credential_offer.to_json()
+        let credential_offer_json = serde_json::to_string(&credential_offer)
             .map_err(|err| CommonError::InvalidState(format!("Cannot serialize CredentialOffer: {:?}", err)))?;
 
         debug!("create_credential_offer <<< credential_offer_json: {:?}", credential_offer_json);
@@ -401,12 +411,12 @@ impl IssuerCommandExecutor {
                       rev_reg_id: Option<&str>,
                       blob_storage_reader_handle: Option<i32>) -> Result<(String, Option<String>, Option<String>), IndyError> {
         debug!("new_credential >>> wallet_handle: {:?}, cred_offer_json: {:?}, cred_req_json: {:?}, cred_values_json: {:?}, rev_reg_id: {:?}, blob_storage_reader_handle: {:?}",
-               wallet_handle, cred_offer_json, cred_req_json, cred_values_json, rev_reg_id, blob_storage_reader_handle);
+               wallet_handle, secret!(cred_offer_json), secret!(cred_req_json), secret!(cred_values_json), rev_reg_id, blob_storage_reader_handle);
 
-        let cred_offer: CredentialOffer = CredentialOffer::from_json(cred_offer_json)
+        let cred_offer: CredentialOffer = serde_json::from_str(cred_offer_json)
             .map_err(|err| CommonError::InvalidStructure(format!("Cannot deserialize CredentialOffer: {:?}", err)))?;
 
-        let cred_request: CredentialRequest = CredentialRequest::from_json(cred_req_json)
+        let cred_request: CredentialRequest = serde_json::from_str(cred_req_json)
             .map_err(|err| CommonError::InvalidStructure(format!("Cannot deserialize CredentialRequest: {:?}", err)))?;
 
         let cred_values: HashMap<String, AttributeValues> = serde_json::from_str(cred_values_json)
@@ -419,7 +429,7 @@ impl IssuerCommandExecutor {
         let cred_def_priv_key: CredentialDefinitionPrivateKey =
             self.wallet_service.get_indy_object(wallet_handle, &cred_request.cred_def_id, &RecordOptions::id_value(), &mut String::new())?;
 
-        let schema_id = self._wallet_get_schema_id(wallet_handle, &cred_offer.cred_def_id)?;  // TODO: FIXME
+        let schema_id = self._wallet_get_schema_id(wallet_handle, &cred_offer.cred_def_id)?;  // TODO: FIXME get CredDef from wallet and use CredDef.schema_id
 
         let (rev_reg_def, mut rev_reg,
             rev_reg_def_priv, sdk_tails_accessor, rev_reg_info) = match rev_reg_id {
@@ -500,17 +510,15 @@ impl IssuerCommandExecutor {
             witness
         };
 
-        let cred_json = credential.to_json()
+        let cred_json = serde_json::to_string(&credential)
             .map_err(|err| CommonError::InvalidState(format!("Cannot serialize Credential: {:?}", err)))?;
 
-        let rev_reg_delta_json = match rev_reg_delta {
-            Some(r_reg_delta) => {
-                Some(RevocationRegistryDelta::RevocationRegistryDeltaV1(RevocationRegistryDeltaV1 { value: r_reg_delta })
-                    .to_json()
-                    .map_err(|err| CommonError::InvalidState(format!("Cannot serialize RevocationRegistryDelta: {:?}", err)))?)
-            }
-            None => None
-        };
+        let rev_reg_delta_json = rev_reg_delta
+            .map(|r_reg_delta| RevocationRegistryDelta::RevocationRegistryDeltaV1(RevocationRegistryDeltaV1 { value: r_reg_delta }))
+            .as_ref()
+            .map(serde_json::to_string)
+            .map_or(Ok(None), |v| v.map(Some))
+            .map_err(|err| CommonError::InvalidState(format!("Cannot serialize RevocationRegistryDelta: {:?}", err)))?;
 
         if let (Some(r_reg), Some(r_reg_id), Some(r_reg_info)) = (credential.rev_reg, rev_reg_id, rev_reg_info.clone()) {
             let revoc_reg = RevocationRegistry::RevocationRegistryV1(RevocationRegistryV1 { value: r_reg });
@@ -521,7 +529,7 @@ impl IssuerCommandExecutor {
 
         let cred_rev_id = rev_reg_info.map(|r_reg_info| r_reg_info.curr_id.to_string());
 
-        debug!("new_credential <<< cred_json: {:?}, cred_rev_id: {:?}, rev_reg_delta_json: {:?}", cred_json, cred_rev_id, rev_reg_delta_json);
+        debug!("new_credential <<< cred_json: {:?}, cred_rev_id: {:?}, rev_reg_delta_json: {:?}", secret!(&cred_json), secret!(&cred_rev_id), rev_reg_delta_json);
 
         Ok((cred_json, cred_rev_id, rev_reg_delta_json))
     }
@@ -532,7 +540,7 @@ impl IssuerCommandExecutor {
                          rev_reg_id: &str,
                          cred_revoc_id: &str) -> Result<String, IndyError> {
         debug!("revoke_credential >>> wallet_handle: {:?}, blob_storage_reader_handle:  {:?}, rev_reg_id: {:?}, cred_revoc_id: {:?}",
-               wallet_handle, blob_storage_reader_handle, rev_reg_id, cred_revoc_id);
+               wallet_handle, blob_storage_reader_handle, rev_reg_id, secret!(cred_revoc_id));
 
         let cred_revoc_id = parse_cred_rev_id(cred_revoc_id)?;
 
@@ -572,7 +580,7 @@ impl IssuerCommandExecutor {
 
         let rev_reg_delta = RevocationRegistryDelta::RevocationRegistryDeltaV1(RevocationRegistryDeltaV1 { value: rev_reg_delta });
 
-        let rev_reg_delta_json = rev_reg_delta.to_json()
+        let rev_reg_delta_json = serde_json::to_string(&rev_reg_delta)
             .map_err(|err| CommonError::InvalidState(format!("Cannot serialize RevocationRegistryDelta: {:?}", err)))?;
 
         let rev_reg = RevocationRegistry::RevocationRegistryV1(rev_reg);
@@ -591,7 +599,7 @@ impl IssuerCommandExecutor {
                             rev_reg_id: &str,
                             cred_revoc_id: &str) -> Result<String, IndyError> {
         debug!("recovery_credential >>> wallet_handle: {:?}, blob_storage_reader_handle: {:?}, rev_reg_id: {:?}, cred_revoc_id: {:?}",
-               wallet_handle, blob_storage_reader_handle, rev_reg_id, cred_revoc_id);
+               wallet_handle, blob_storage_reader_handle, rev_reg_id, secret!(cred_revoc_id));
 
         let cred_revoc_id = parse_cred_rev_id(cred_revoc_id)?;
 
@@ -631,7 +639,7 @@ impl IssuerCommandExecutor {
 
         let rev_reg_delta = RevocationRegistryDelta::RevocationRegistryDeltaV1(RevocationRegistryDeltaV1 { value: revocation_registry_delta });
 
-        let rev_reg_delta_json = rev_reg_delta.to_json()
+        let rev_reg_delta_json = serde_json::to_string(&rev_reg_delta)
             .map_err(|err| CommonError::InvalidState(format!("Cannot serialize RevocationRegistryDelta: {:?}", err)))?;
 
         let rev_reg = RevocationRegistry::RevocationRegistryV1(rev_reg);
@@ -649,22 +657,22 @@ impl IssuerCommandExecutor {
                                         other_rev_reg_delta_json: &str) -> Result<String, IndyError> {
         debug!("merge_revocation_registry_deltas >>> rev_reg_delta_json: {:?}, other_rev_reg_delta_json: {:?}", rev_reg_delta_json, other_rev_reg_delta_json);
 
-        let mut rev_reg_delta: RevocationRegistryDeltaV1 =
-            RevocationRegistryDeltaV1::from(
-                RevocationRegistryDelta::from_json(rev_reg_delta_json)
-                    .map_err(|err| CommonError::InvalidStructure(format!("Cannot deserialize RevocationRegistryDelta: {:?}", err)))?);
+        let rev_reg_delta: RevocationRegistryDelta = serde_json::from_str(rev_reg_delta_json)
+            .map_err(|err| CommonError::InvalidStructure(format!("Cannot deserialize RevocationRegistryDelta: {:?}", err)))?;
 
-        let other_rev_reg_delta: RevocationRegistryDeltaV1 =
-            RevocationRegistryDeltaV1::from(
-                RevocationRegistryDelta::from_json(other_rev_reg_delta_json)
-                    .map_err(|err| CommonError::InvalidStructure(format!("Cannot deserialize other RevocationRegistryDelta: {:?}", err)))?);
+        let mut rev_reg_delta: RevocationRegistryDeltaV1 = RevocationRegistryDeltaV1::from(rev_reg_delta);
+
+        let other_rev_reg_delta: RevocationRegistryDelta = serde_json::from_str(other_rev_reg_delta_json)
+            .map_err(|err| CommonError::InvalidStructure(format!("Cannot deserialize other RevocationRegistryDelta: {:?}", err)))?;
+
+        let other_rev_reg_delta: RevocationRegistryDeltaV1 = RevocationRegistryDeltaV1::from(other_rev_reg_delta);
 
         rev_reg_delta.value.merge(&other_rev_reg_delta.value)
             .map_err(|err| IndyError::CommonError(CommonError::from(err)))?;
 
         let rev_reg_delta = RevocationRegistryDelta::RevocationRegistryDeltaV1(rev_reg_delta);
 
-        let merged_rev_reg_delta_json = rev_reg_delta.to_json()
+        let merged_rev_reg_delta_json = serde_json::to_string(&rev_reg_delta)
             .map_err(|err| CommonError::InvalidState(format!("Cannot serialize RevocationRegistryDelta: {:?}", err)))?;
 
         debug!("merge_revocation_registry_deltas <<< merged_rev_reg_delta: {:?}", merged_rev_reg_delta_json);
@@ -674,7 +682,7 @@ impl IssuerCommandExecutor {
 
     // TODO: DELETE IT
     fn _wallet_set_schema_id(&self, wallet_handle: i32, id: &str, schema_id: &str) -> Result<(), WalletError> {
-        self.wallet_service.add_record(wallet_handle, &self.wallet_service.add_prefix("SchemaId"), id, schema_id, "{}")
+        self.wallet_service.add_record(wallet_handle, &self.wallet_service.add_prefix("SchemaId"), id, schema_id, &HashMap::new())
     }
 
     // TODO: DELETE IT

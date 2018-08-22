@@ -7,19 +7,35 @@ import org.hyperledger.indy.sdk.IndyIntegrationTestWithPoolAndSingleWallet;
 import org.hyperledger.indy.sdk.utils.PoolUtils;
 import org.json.JSONObject;
 import org.junit.Test;
+import org.hyperledger.indy.sdk.JsonObjectSimilar;
 
 public class GetTxnRequestTest extends IndyIntegrationTestWithPoolAndSingleWallet {
 
 	@Test
 	public void testBuildGetTxnRequestWorks() throws Exception {
-		int data = 1;
+		int seq_no = 1;
 		String expectedResult = String.format("\"identifier\":\"%s\"," +
 				"\"operation\":{" +
 				"\"type\":\"3\"," +
-				"\"data\":%s" +
-				"}", DID, data);
+				"\"data\":%s," +
+				"\"ledgerId\":1" +
+				"}", DID, seq_no);
 
-		String getTxnRequest = Ledger.buildGetTxnRequest(DID, data).get();
+		String getTxnRequest = Ledger.buildGetTxnRequest(DID, null, seq_no).get();
+		assertTrue(getTxnRequest.replace("\\", "").contains(expectedResult));
+	}
+
+	@Test
+	public void testBuildGetTxnRequestWorksForLedgerType() throws Exception {
+		int seq_no = 1;
+		String expectedResult = String.format("\"identifier\":\"%s\"," +
+				"\"operation\":{" +
+				"\"type\":\"3\"," +
+				"\"data\":%s," +
+				"\"ledgerId\":0" +
+				"}", DID, seq_no);
+
+		String getTxnRequest = Ledger.buildGetTxnRequest(DID, "POOL", seq_no).get();
 		assertTrue(getTxnRequest.replace("\\", "").contains(expectedResult));
 	}
 
@@ -33,7 +49,7 @@ public class GetTxnRequestTest extends IndyIntegrationTestWithPoolAndSingleWalle
 		JSONObject schemaResponseObj = new JSONObject(schemaResponse);
 		int seqNo = schemaResponseObj.getJSONObject("result").getJSONObject("txnMetadata").getInt("seqNo");
 
-		String getTxnRequest = Ledger.buildGetTxnRequest(did, seqNo).get();
+		String getTxnRequest = Ledger.buildGetTxnRequest(did, null, seqNo).get();
 		String expectedData = "{\"name\":\"gvt\",\"version\":\"1.0\",\"attr_names\": [\"name\"]}";
 
 		String getTxnResponse = PoolUtils.ensurePreviousRequestApplied(pool, getTxnRequest, response -> {
@@ -41,7 +57,7 @@ public class GetTxnRequestTest extends IndyIntegrationTestWithPoolAndSingleWalle
 			JSONObject schemaTransactionObj =
 					getTxnResponseObj.getJSONObject("result").getJSONObject("data").getJSONObject("txn").getJSONObject("data").getJSONObject("data");
 
-			return new JSONObject(expectedData).similar(schemaTransactionObj);
+			return JsonObjectSimilar.similar(new JSONObject(expectedData), schemaTransactionObj);
 		});
 		assertNotNull(getTxnResponse);
 	}
@@ -56,7 +72,7 @@ public class GetTxnRequestTest extends IndyIntegrationTestWithPoolAndSingleWalle
 		JSONObject schemaResponseObj = new JSONObject(schemaResponse);
 		int seqNo = schemaResponseObj.getJSONObject("result").getJSONObject("txnMetadata").getInt("seqNo") + 1;
 
-		String getTxnRequest = Ledger.buildGetTxnRequest(did, seqNo).get();
+		String getTxnRequest = Ledger.buildGetTxnRequest(did, null, seqNo).get();
 		String getTxnResponse = Ledger.submitRequest(pool, getTxnRequest).get();
 
 		JSONObject getTxnResponseObj = new JSONObject(getTxnResponse);

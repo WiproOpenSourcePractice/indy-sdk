@@ -10,12 +10,8 @@ pub enum ResponseType {
 }
 
 #[derive(Deserialize, Eq, PartialEq, Debug)]
-#[serde(rename_all = "camelCase")]
 pub struct Response {
-    pub op: ResponseType,
-    pub reason: String,
-    pub req_id: u64,
-    pub identifier: String
+    pub op: ResponseType
 }
 
 #[derive(Deserialize, Eq, PartialEq, Debug)]
@@ -151,10 +147,4 @@ pub struct WalletRecord {
 pub struct SearchRecords {
     pub total_count: Option<i32>,
     pub records: Option<Vec<WalletRecord>>
-}
-
-pub struct Utxo {
-    pub input: String,
-    pub amount: i32,
-    pub extra: Option<String>
 }

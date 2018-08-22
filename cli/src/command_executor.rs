@@ -151,7 +151,6 @@ pub struct CommandContext {
     plugins: RefCell<HashMap<String, libloading::Library>>,
 }
 
-#[allow(dead_code)] //FIXME
 impl CommandContext {
     pub fn new() -> CommandContext {
         CommandContext {
@@ -354,7 +353,7 @@ impl CommandExecutor {
             .params()
             .iter()
             .filter(|param| param.name().starts_with(word))
-            .map(|param| (param.name().to_owned(), '='))
+            .map(|param| (param.name().to_owned(), CommandExecutor::param_complete_symbol(param)))
             .collect::<Vec<(String, char)>>());
 
         completes
@@ -370,12 +369,16 @@ impl CommandExecutor {
         let param_names: Vec<(String, char)> = command_params
             .iter()
             .filter(|param_meta| !params.contains(&param_meta.name) && param_meta.name.starts_with(word))
-            .map(|param_meta| ((*param_meta.name).to_owned(), '='))
+            .map(|param_meta| ((*param_meta.name).to_owned(), CommandExecutor::param_complete_symbol(param_meta)))
             .collect();
 
         completes.extend(param_names);
 
         completes
+    }
+
+    fn param_complete_symbol(param: &ParamMetadata) -> char {
+        if !param.is_deferred() { '=' } else { ' ' }
     }
 
     fn command_names(commands: &HashMap<&'static str, Command>, word: &str) -> Vec<(String, char)> {
@@ -664,7 +667,7 @@ impl CommandExecutor {
             }
         }
 
-        let mut deffered_params = Vec::new();
+        let mut deferred_params = Vec::new();
 
         // Read rest params
         loop {
@@ -692,7 +695,7 @@ impl CommandExecutor {
                                 .map(|param_value| res.insert(param_metadata.name(), param_value))?;
                         }
                         _ if param_metadata.is_deferred() => {
-                            deffered_params.push(param_metadata.name());
+                            deferred_params.push(param_metadata.name());
                         }
                         _ => return Err(format!("No value for \"{}\" parameter present", param_name))
                     }
@@ -701,7 +704,7 @@ impl CommandExecutor {
             }
         }
 
-        for param in deffered_params {
+        for param in deferred_params {
             println!("Enter value for {}:", param);
             let val;
             loop {
@@ -860,7 +863,7 @@ mod tests {
                     .finalize());
 
         fn execute(ctx: &CommandContext, params: &CommandParams) -> Result<(), ()> {
-            println!("Test comamnd params: ctx {:?} params {:?}", ctx, params);
+            println!("Test command params: ctx {:?} params {:?}", ctx, params);
             Ok(())
         }
     }
